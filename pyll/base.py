@@ -20,7 +20,9 @@ class SymbolTable(object):
         self._impls = {
                 'pos_args': lambda *x: x,
                 'dict': dict,
-                'literal': lambda x: x}
+                'range': range,
+                'len': len,
+                }
 
     def _new_apply(self, name, args, kwargs, o_len):
         pos_args = [as_apply(a) for a in args]
@@ -36,7 +38,13 @@ class SymbolTable(object):
 
     def dict(self, *args, **kwargs):
         # XXX: figure out len
-        return self._new_apply('dict', args, kwargs)
+        return self._new_apply('dict', args, kwargs, o_len=None)
+
+    def range(self, *args):
+        return self._new_apply('range', args, {}, o_len=None)
+
+    def len(self, obj):
+        return self._new_apply('len', [obj], {}, o_len=None)
 
     def define(self, f, o_len=None):
         """Decorator for adding python functions to self
@@ -87,8 +95,9 @@ class Apply(object):
 
     def __init__(self, name, pos_args, named_args, o_len=None):
         self.name = name
-        self.pos_args = pos_args
-        self.named_args = named_args
+        # -- tuples or arrays -> lists
+        self.pos_args = list(pos_args)
+        self.named_args = [[kw, arg] for (kw, arg) in named_args]
         # -- o_len is attached this early to support tuple unpacking and
         #    list coersion.
         self.o_len = o_len
@@ -97,7 +106,22 @@ class Apply(object):
         assert all(isinstance(k, basestring) for k, v in named_args)
 
     def inputs(self):
-        return self.pos_args + [v for (k, v) in self.named_args]
+        rval = self.pos_args + [v for (k, v) in self.named_args]
+        assert all(isinstance(arg, Apply) for arg in rval)
+        return rval
+
+    def clone_from_inputs(self, inputs, o_len='same'):
+        if len(inputs) != len(self.inputs()):
+            raise TypeError()
+        L = len(self.pos_args)
+        pos_args  = list(inputs[:L])
+        named_args = [[kw, inputs[L + ii]]
+                for ii, (kw, arg) in enumerate(self.named_args)]
+        # -- danger cloning with new inputs can change the o_len
+        if o_len == 'same':
+            o_len = self.o_len
+        return self.__class__(self.name, pos_args, named_args, o_len)
+
 
     def replace_input(self, old_node, new_node):
         rval = []
@@ -159,6 +183,9 @@ class Literal(Apply):
     def replace_input(self, old_node, new_node):
         return []
 
+    def clone_from_inputs(self, inputs, o_len='same'):
+        return self.__class__(self._obj)
+
 
 def dfs(aa, seq=None, seqset=None):
     if seq is None:
@@ -169,11 +196,24 @@ def dfs(aa, seq=None, seqset=None):
     #    the stack)
     if aa in seqset:
         return
+    assert isinstance(aa, Apply)
     seqset.add(aa)
     for ii in aa.inputs():
         dfs(ii, seq, seqset)
     seq.append(aa)
     return seq
+
+
+def clone(expr, memo=None):
+    if memo is None:
+        memo = {}
+    nodes = dfs(expr)
+    for node in nodes:
+        if node not in memo:
+            new_inputs = [memo[arg] for arg in node.inputs()]
+            new_node = node.clone_from_inputs(new_inputs)
+            memo[node] = new_node
+    return memo[expr]
 
 
 ################################################################################
@@ -231,5 +271,4 @@ def identity(obj):
 @scope.define
 def add(a, b):
     return a + b
-
 

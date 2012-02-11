@@ -1,11 +1,15 @@
 """
 Constructs for annotating base graphs.
 """
+import sys
+import numpy as np
 
-from .base import scope
+from .base import scope, as_apply, dfs
 
 ################################################################################
 ################################################################################
+def ERR(msg):
+    print >> sys.stderr, msg
 
 
 implicit_stochastic_symbols = set()
@@ -27,7 +31,6 @@ def rng_from_seed(seed):
     return np.random.RandomState(seed)
 
 
-
 @implicit_stochastic
 @scope.define
 def uniform(low, high, rng=None):
@@ -36,7 +39,66 @@ def uniform(low, high, rng=None):
 
 @implicit_stochastic
 @scope.define
+def randint(upper, size=(), rng=None):
+    return rng.randint(upper, size=size)
+
+@scope.define
+def vchoice_split(idxs, choices, n_options):
+    rval = [[] for ii in range(n_options)]
+    if len(idxs) != len(choices):
+        raise ValueError('idxs and choices different len',
+                (len(idxs), len(choices)))
+    for ii, cc in zip(idxs, choices):
+        rval[cc].append(ii)
+    return rval
+
+@scope.define
+def array_union(a, b):
+    sa = set(a)
+    sa.update(b)
+    return np.asarray(sorted(sa))
+
+@scope.define
+def repeat(n_times, obj):
+    return [obj] * n_times
+
+@scope.define
+def Nmap(n_times, cmd, *args, **kwargs):
+    for ii, arg in enumerate(args):
+        if len(arg) != n_times:
+            raise ValueError('wrong len for arg %i' % ii,
+                    len(arg))
+    for kw, arg in kwargs:
+        if len(arg) != n_times:
+            raise ValueError('wrong len for kwarg %s' % kw,
+                    len(arg))
+    f = scope._impls[cmd]
+    rval = []
+    for nn in range(n_times):
+        args_nn = [arg[nn] for arg in args]
+        kwargs_nn = dict([(kw, arg[nn]) for kw, arg in kwargs.items()])
+        try:
+            rval_nn = f(*args, **kwargs)
+        except:
+            ERR('error calling impl of %s' % cmd)
+            raise
+        rval.append(rval_nn)
+    return rval
+
+
+@implicit_stochastic
+@scope.define
 def choice(args, rng=None):
+    ii = rng.randint(len(args))
+    return args[ii]
+
+
+@implicit_stochastic
+@scope.define
+def one_of(*args, **kwargs):
+    if kwargs:
+        assert len(kwargs) == 1 and 'rng' in kwargs
+    rng = kwargs.get('rng', None)
     ii = rng.randint(len(args))
     return args[ii]
 
@@ -114,9 +176,9 @@ class VectorizeHelper(object):
             node_idxs = self.idxs_memo[node]
             if node.name == 'one_of':
                 n_options  = len(node.pos_args)
-                choices = scope.randint(n_options, size=len(node_idxs))
+                choices = scope.randint(n_options, size=scope.len(node_idxs))
                 self.vals_memo[node] = choices
-                sub_idxs = scope.vchoice_split(node_idxs, choices)
+                sub_idxs = scope.vchoice_split(node_idxs, choices, n_options)
                 for ii, arg in enumerate(node.pos_args):
                     self.merge(sub_idxs[ii], arg)
             else:
@@ -128,13 +190,19 @@ class VectorizeHelper(object):
         for node in self.dfs_nodes:
             if node not in self.vals_memo:
                 n_times = scope.len(self.idxs_memo[node])
-                vnode = scope.repeat(n_times, node.name)
-                vnode.pos_args.extend(node.pos_args)
-                vnode.named_args.extend(node.named_args)
-                for arg in node.inputs:
-                    vnode.replace(arg, self.vals_memo[arg])
-                vnode.replace
+                if node.name == 'literal':
+                    vnode = scope.repeat(n_times, node)
+                else:
+                    vnode = scope.Nmap(n_times, node.name)
+                    vnode.pos_args.extend(node.pos_args)
+                    vnode.named_args.extend(node.named_args)
+                    for arg in node.inputs():
+                        vnode.replace_input(arg, self.vals_memo[arg])
                 self.vals_memo[node] = vnode
+
+    def __getitem__(self, i):
+        # return an expression for the i'th vectorized expression
+        return self.vals_memo[self.expr][i]
 
 
 def vectorize(expr, N):
@@ -144,9 +212,11 @@ def vectorize(expr, N):
        1. a list of N evaluations of expr
        2. a list of (node, idxs, vals) for the stochastic elements of expr
     """
+    #import pdb; pdb.set_trace()
     expr_idxs = scope.range(N)
     vh = VectorizeHelper(expr, expr_idxs)
     vh.build_idxs()
     vh.build_vals()
+    return vh.vals_memo[expr]
 
 

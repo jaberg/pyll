@@ -1,8 +1,4 @@
 from pyll.base import *
-
-#
-#
-#
 import numpy as np
 
 def test_literal_pprint():
@@ -15,6 +11,7 @@ def test_literal_apply():
     l0 = Literal([1, 2, 3])
     print str(l0)
     assert str(l0) == 'Literal{[1, 2, 3]}'
+
 
 def test_literal_unpacking():
     l0 = Literal([1, 2, 3])
@@ -99,7 +96,7 @@ def test_as_apply_nested_dict():
 
 
 def test_lnorm():
-    G = global_scope
+    G = scope
     choice = G.choice
     uniform = G.uniform
     quantized_uniform = G.quantized_uniform
@@ -135,28 +132,9 @@ def test_dfs():
 
 
 def test_o_len():
-    obj = global_scope.draw_rng()
+    obj = scope.draw_rng()
     x, y = obj
     assert x.name == 'getitem'
     assert x.pos_args[1]._obj == 0
-
-
-def test_replace_implicit_stochastic_nodes():
-    a = global_scope.uniform(-2, -1)
-    rng = np.random.RandomState(234)
-    new_a, lrng = replace_implicit_stochastic_nodes(a, rng)
-    print new_a
-    assert new_a.name == 'getitem'
-    assert new_a.pos_args[0].name == 'draw_rng'
-
-
-def test_replace_implicit_stochastic_nodes_multi():
-    uniform = global_scope.uniform
-    a = as_apply([uniform(0, 1), uniform(2, 3)])
-    rng = np.random.RandomState(234)
-    new_a, lrng = replace_implicit_stochastic_nodes(a, rng)
-    print new_a
-    val_a = rec_eval(new_a)
-    assert np.allclose(val_a, (0.03096734347001351, 2.254282073234248))
 
 
