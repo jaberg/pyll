@@ -4,7 +4,7 @@ Constructs for annotating base graphs.
 import sys
 import numpy as np
 
-from .base import scope, as_apply, dfs
+from .base import scope, as_apply, dfs, Apply
 
 ################################################################################
 ################################################################################
@@ -33,7 +33,7 @@ def rng_from_seed(seed):
 
 @implicit_stochastic
 @scope.define
-def uniform(low, high, rng=None):
+def uniform(low, high, rng=None, size=()):
     return rng.uniform(low, high)
 
 
@@ -96,9 +96,9 @@ def choice(args, rng=None):
 @implicit_stochastic
 @scope.define
 def one_of(*args, **kwargs):
-    if kwargs:
-        assert len(kwargs) == 1 and 'rng' in kwargs
-    rng = kwargs.get('rng', None)
+    rng = kwargs.pop('rng', None)
+    size = kwargs.pop(size, ())
+    assert not kwargs # -- we should have got everything by now
     ii = rng.randint(len(args))
     return args[ii]
 
@@ -140,6 +140,25 @@ def replace_implicit_stochastic_nodes(expr, rng, scope=scope):
                 expr = draw
             lrng = new_lrng
     return expr, new_lrng
+
+
+def replace_repeat_stochastic(expr):
+    stoch = implicit_stochastic_symbols
+    nodes = dfs(expr)
+    for ii, orig in enumerate(nodes):
+        # SEE REPLACE ABOVE AS WELL
+        # XXX NOT GOOD! WRITE PATTERNS FOR SUCH THINGS!
+        if orig.name == 'Nmap' and orig.pos_args[1]._obj in stoch:
+            dist = orig.pos_args[1]._obj
+            n_times = orig.pos_args[0]
+            vnode = Apply(dist, orig.pos_args[2:], orig.named_args, None)
+            vnode.named_args.append(['size', n_times])
+            # -- loop over all nodes that *use* this one, and change them
+            for client in nodes[ii+1:]:
+                client.replace_input(orig, vnode)
+            if expr is orig:
+                expr = vnode
+    return expr
 
 
 class VectorizeHelper(object):

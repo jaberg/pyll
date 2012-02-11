@@ -2,6 +2,7 @@ import numpy as np
 
 from pyll import as_apply, vectorize, scope, rec_eval, clone, dfs
 from pyll.annotate import replace_implicit_stochastic_nodes
+from pyll.annotate import replace_repeat_stochastic
 
 
 def test_replace_implicit_stochastic_nodes():
@@ -59,11 +60,25 @@ def test_clone():
 def test_no_redundant_unions():
     config = config0()
 
+    N = as_apply(5)
+    vconfig = vectorize(config, N)
+    print '=' * 80
+    print 'VECTORIZED'
+    print vconfig
+    print '\n' * 3
 
-    N = as_apply(1)
-    v = vectorize(s, N)
-    print v
-    new_v, lrng = replace_implicit_stochastic_nodes(v,
+    vconfig2 = replace_repeat_stochastic(vconfig)
+    print '=' * 80
+    print 'VECTORIZED STOCHASTIC'
+    print vconfig2
+    print '\n' * 3
+
+    new_vc, lrng = replace_implicit_stochastic_nodes(vconfig2,
             scope.rng_from_seed(1))
-    print rec_eval(new_v)
+
+    print '=' * 80
+    print 'VECTORIZED STOCHASTIC WITH RNGS'
+    print new_vc
+
+    print rec_eval(new_vc)
 
