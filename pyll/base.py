@@ -272,3 +272,15 @@ def identity(obj):
 def add(a, b):
     return a + b
 
+
+@scope.define
+def array_union(a, b):
+    sa = set(a)
+    sa.update(b)
+    return np.asarray(sorted(sa))
+
+
+@scope.define
+def repeat(n_times, obj):
+    return [obj] * n_times
+
