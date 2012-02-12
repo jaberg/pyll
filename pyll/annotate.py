@@ -121,7 +121,7 @@ def choice(args, rng=None):
 @scope.define
 def one_of(*args, **kwargs):
     rng = kwargs.pop('rng', None)
-    size = kwargs.pop(size, ())
+    size = kwargs.pop('size', ())
     assert not kwargs # -- we should have got everything by now
     ii = rng.randint(len(args))
     return args[ii]

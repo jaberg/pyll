@@ -61,19 +61,6 @@ def test_clone():
     print r2
     assert r == r2
 
-def test_vals_memo():
-    expr = config1()
-    N = as_apply(5)
-    expr_idxs = scope.range(N)
-    vh = VectorizeHelper(expr, expr_idxs)
-    vh.build_idxs()
-    vh.build_vals()
-    print vh.vals_memo.values()
-
-    all_vals = vh.vals_memo.values()
-    foo = rec_eval(as_apply(all_vals))
-    print foo
-
 
 def test_vectorize_config0():
     config = config0()

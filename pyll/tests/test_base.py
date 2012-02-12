@@ -111,7 +111,9 @@ def test_lnorm():
                  low=.1 / np.sqrt(10.),
                  high=10 * np.sqrt(10))
              }})
-    assert len(str(lnorm)) == 977, len(str(lnorm))
+    print lnorm
+    print 'len', len(str(lnorm))
+    assert len(str(lnorm)) == 1016
 
 
 def test_dfs():
