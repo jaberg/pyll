@@ -53,6 +53,15 @@ def vchoice_split(idxs, choices, n_options):
     return rval
 
 @scope.define
+def vchoice_merge(idxs, choices, *vals):
+    rval = []
+    assert len(idxs) == len(choices)
+    for idx, ch in zip(idxs, choices):
+        vi, vv = vals[ch]
+        rval.append(vv[list(vi).index(idx)])
+    return rval
+
+@scope.define
 def array_union(a, b):
     sa = set(a)
     sa.update(b)
@@ -62,23 +71,38 @@ def array_union(a, b):
 def repeat(n_times, obj):
     return [obj] * n_times
 
+
 @scope.define
-def Nmap(n_times, cmd, *args, **kwargs):
-    for ii, arg in enumerate(args):
-        if len(arg) != n_times:
-            raise ValueError('wrong len for arg %i' % ii,
-                    len(arg))
-    for kw, arg in kwargs:
-        if len(arg) != n_times:
-            raise ValueError('wrong len for kwarg %s' % kw,
-                    len(arg))
+def idxs_map(idxs, cmd, *args, **kwargs):
+    for ii, (idxs_ii, vals_ii) in enumerate(args):
+        for jj in idxs: assert jj in idxs_ii
+    for kw, (idxs_kw, vals_kw) in kwargs.items():
+        for jj in idxs: assert jj in idxs_kw
     f = scope._impls[cmd]
     rval = []
-    for nn in range(n_times):
-        args_nn = [arg[nn] for arg in args]
-        kwargs_nn = dict([(kw, arg[nn]) for kw, arg in kwargs.items()])
+    for ii in idxs:
         try:
-            rval_nn = f(*args, **kwargs)
+            args_nn = [vals_j[list(idxs_j).index(ii)] for (idxs_j, vals_j) in args]
+        except:
+            ERR('args_nn %s' % cmd)
+            ERR('ii %s' % ii)
+            ERR('idxs %s' % str(idxs))
+            ERR('idxs_j %s' % str(idxs_j))
+            ERR('vals_j %s' % str(vals_j))
+            raise
+        try:
+            kwargs_nn = dict([(kw, vals_j[list(idxs_j).index(ii)])
+                for kw, (idxs_j, vals_j) in kwargs.items()])
+        except:
+            ERR('args_nn %s' % cmd)
+            ERR('ii %s' % ii)
+            ERR('kw %s' % kw)
+            ERR('idxs %s' % str(idxs))
+            ERR('idxs_j %s' % str(idxs_j))
+            ERR('vals_j %s' % str(vals_j))
+            raise
+        try:
+            rval_nn = f(*args_nn, **kwargs_nn)
         except:
             ERR('error calling impl of %s' % cmd)
             raise
@@ -148,10 +172,18 @@ def replace_repeat_stochastic(expr):
     for ii, orig in enumerate(nodes):
         # SEE REPLACE ABOVE AS WELL
         # XXX NOT GOOD! WRITE PATTERNS FOR SUCH THINGS!
-        if orig.name == 'Nmap' and orig.pos_args[1]._obj in stoch:
+        if orig.name == 'idxs_map' and orig.pos_args[1]._obj in stoch:
+            idxs = orig.pos_args[0]
             dist = orig.pos_args[1]._obj
-            n_times = orig.pos_args[0]
-            vnode = Apply(dist, orig.pos_args[2:], orig.named_args, None)
+            inputs = []
+            for arg in orig.inputs()[2:]:
+                assert arg.name == 'pos_args'
+                assert arg.pos_args[0] is idxs
+                inputs.append(arg.pos_args[1])
+            if orig.named_args:
+                raise NotImplementedError('')
+            vnode = Apply(dist, inputs, orig.named_args, None)
+            n_times = scope.len(idxs)
             vnode.named_args.append(['size', n_times])
             # -- loop over all nodes that *use* this one, and change them
             for client in nodes[ii+1:]:
@@ -181,7 +213,10 @@ class VectorizeHelper(object):
         self.expr_idxs = expr_idxs
         self.idxs_memo = {expr: expr_idxs}
         self.vals_memo = {}
+        self.choice_memo = {}
         self.dfs_nodes = dfs(expr)
+        self.node_id = dict([(node, 'node_%i' % ii)
+            for ii, node in enumerate(dfs(expr))])
 
     def merge(self, idxs, node):
         if node in self.idxs_memo:
@@ -196,7 +231,7 @@ class VectorizeHelper(object):
             if node.name == 'one_of':
                 n_options  = len(node.pos_args)
                 choices = scope.randint(n_options, size=scope.len(node_idxs))
-                self.vals_memo[node] = choices
+                self.choice_memo[node] = choices
                 sub_idxs = scope.vchoice_split(node_idxs, choices, n_options)
                 for ii, arg in enumerate(node.pos_args):
                     self.merge(sub_idxs[ii], arg)
@@ -207,21 +242,36 @@ class VectorizeHelper(object):
     # -- separate method for testing
     def build_vals(self):
         for node in self.dfs_nodes:
-            if node not in self.vals_memo:
+            if node.name == 'literal':
                 n_times = scope.len(self.idxs_memo[node])
-                if node.name == 'literal':
-                    vnode = scope.repeat(n_times, node)
-                else:
-                    vnode = scope.Nmap(n_times, node.name)
-                    vnode.pos_args.extend(node.pos_args)
-                    vnode.named_args.extend(node.named_args)
-                    for arg in node.inputs():
-                        vnode.replace_input(arg, self.vals_memo[arg])
-                self.vals_memo[node] = vnode
+                vnode = scope.repeat(n_times, node)
+            elif node in self.choice_memo:
+                vnode = scope.vchoice_merge(
+                        self.idxs_memo[node],
+                        self.choice_memo[node])
+                vnode.pos_args.extend([
+                    as_apply([
+                        self.idxs_memo[inode],
+                        self.vals_memo[inode]])
+                    for inode in node.pos_args])
+            else:
+                vnode = scope.idxs_map(self.idxs_memo[node], node.name)
+                vnode.pos_args.extend(node.pos_args)
+                vnode.named_args.extend(node.named_args)
+                for arg in node.inputs():
+                    vnode.replace_input(arg,
+                            as_apply([
+                                self.idxs_memo[arg],
+                                self.vals_memo[arg]]))
+            self.vals_memo[node] = vnode
 
-    def __getitem__(self, i):
-        # return an expression for the i'th vectorized expression
-        return self.vals_memo[self.expr][i]
+    def idxs_by_id(self):
+        return dict([(self.node_id[node], idxs)
+            for node, idxs in self.idxs_memo.items()])
+
+    def vals_by_id(self):
+        return dict([(self.node_id[node], idxs)
+            for node, idxs in self.vals_memo.items()])
 
 
 def vectorize(expr, N):
