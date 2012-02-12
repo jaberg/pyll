@@ -37,9 +37,11 @@ def config0():
     s = as_apply(d)
     return s
 
+
 def config1():
     p0 = scope.uniform(0, 1)
     return as_apply(locals())
+
 
 def test_clone():
     config = config0()

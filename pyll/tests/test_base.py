@@ -67,7 +67,6 @@ def test_as_apply_dict_of_literals():
 
 
 def test_as_apply_dict_of_applies():
-
     d = {'a': as_apply(9), 'b': as_apply(10)}
     ad = as_apply(d)
     assert isinstance(ad, Apply)
