@@ -250,8 +250,6 @@ def rec_eval(node, scope=scope):
                 args = [memo[id(v)] for v in node.pos_args]
                 kwargs = dict([(k, memo[id(v)]) for (k, v) in node.named_args])
                 memo[id(node)] = rval = scope._impls[node.name](*args, **kwargs)
-                if rval is None:
-                    raise Exception('really?', (node.name, args, kwargs))
     return memo[id(topnode)]
 
 
