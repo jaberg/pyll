@@ -275,6 +275,11 @@ def add(a, b):
 
 
 @scope.define
+def exp(a):
+    return np.exp(a)
+
+
+@scope.define
 def array_union(a, b):
     sa = set(a)
     sa.update(b)
