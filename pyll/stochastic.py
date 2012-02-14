@@ -31,15 +31,56 @@ def rng_from_seed(seed):
     return np.random.RandomState(seed)
 
 
+# -- UNIFORM
+
 @implicit_stochastic
 @scope.define
 def uniform(low, high, rng=None, size=()):
-    return rng.uniform(low, high)
+    return rng.uniform(low, high, size=size)
 
 
 @implicit_stochastic
 @scope.define
-def randint(upper, size=(), rng=None):
+def quantized_uniform(low, high, q, rng=None, size=()):
+    draw = rng.uniform(low, high, size=size)
+    return np.floor(draw/q) * q
+
+
+@implicit_stochastic
+@scope.define
+def exp_uniform(low, high, rng=None):
+    draw = rng.uniform(low, high)
+    return np.exp(draw)
+
+
+# -- NORMAL
+
+@implicit_stochastic
+@scope.define
+def normal(mu, sigma, rng=None, size=()):
+    return rng.normal(mu, sigma, size=size)
+
+
+@implicit_stochastic
+@scope.define
+def quantized_normal(mu, sigma, q, rng=None, size=()):
+    draw = rng.normal(mu, sigma, size=size)
+    return np.floor(draw/q) * q
+
+
+@implicit_stochastic
+@scope.define
+def exp_normal(mu, sigma, rng=None, size=()):
+    draw = rng.normal(mu, sigma, size=size)
+    return np.exp(draw)
+
+
+# -- RANDINT
+
+
+@implicit_stochastic
+@scope.define
+def randint(upper, rng=None, size=()):
     return rng.randint(upper, size=size)
 
 
@@ -58,22 +99,6 @@ def one_of(*args, **kwargs):
     assert not kwargs # -- we should have got everything by now
     ii = rng.randint(len(args))
     return args[ii]
-
-
-@implicit_stochastic
-@scope.define
-def quantized_uniform(low, high, q, rng=None):
-    draw = rng.uniform(low, high)
-    return np.floor(draw/q) * q
-
-
-@implicit_stochastic
-@scope.define
-def log_uniform(low, high, rng=None):
-    loglow = np.log(low)
-    loghigh = np.log(high)
-    draw = rng.uniform(loglow, loghigh)
-    return np.exp(draw)
 
 
 def replace_implicit_stochastic_nodes(expr, rng, scope=scope):
@@ -111,7 +136,7 @@ def replace_repeat_stochastic(expr):
             inputs = []
             for arg in orig.inputs()[2:]:
                 assert arg.name == 'pos_args'
-                assert arg.pos_args[0] is idxs
+                assert arg.pos_args[0] is idxs, str(orig)
                 inputs.append(arg.pos_args[1])
             if orig.named_args:
                 raise NotImplementedError('')

@@ -4,6 +4,7 @@
 #
 
 from StringIO import StringIO
+import numpy as np # -- for array union
 
 class SymbolTable(object):
     """
