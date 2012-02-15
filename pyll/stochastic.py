@@ -81,6 +81,15 @@ def exp_normal(mu, sigma, rng=None, size=()):
 @implicit_stochastic
 @scope.define
 def randint(upper, rng=None, size=()):
+    # this is tricky because numpy doesn't support
+    # upper being a list of len size[0]
+    if isinstance(upper, (list, tuple)):
+        if isinstance(size, int):
+            assert len(upper) == size
+            return np.asarray([rng.randint(uu) for uu in upper])
+        elif len(size) == 1:
+            assert len(upper) == size[0]
+            return np.asarray([rng.randint(uu) for uu in upper])
     return rng.randint(upper, size=size)
 
 
