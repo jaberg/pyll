@@ -41,16 +41,23 @@ def uniform(low, high, rng=None, size=()):
 
 @implicit_stochastic
 @scope.define
-def quantized_uniform(low, high, q, rng=None, size=()):
+def loguniform(low, high, rng=None, size=()):
+    draw = rng.uniform(low, high, size=size)
+    return np.exp(draw)
+
+
+@implicit_stochastic
+@scope.define
+def quniform(low, high, q, rng=None, size=()):
     draw = rng.uniform(low, high, size=size)
     return np.floor(draw/q) * q
 
 
 @implicit_stochastic
 @scope.define
-def exp_uniform(low, high, rng=None):
-    draw = rng.uniform(low, high)
-    return np.exp(draw)
+def qloguniform(low, high, q, rng=None, size=()):
+    draw = np.exp(rng.uniform(low, high, size=size))
+    return np.floor(draw/q) * q
 
 
 # -- NORMAL
@@ -63,19 +70,26 @@ def normal(mu, sigma, rng=None, size=()):
 
 @implicit_stochastic
 @scope.define
-def quantized_normal(mu, sigma, q, rng=None, size=()):
+def qnormal(mu, sigma, q, rng=None, size=()):
     draw = rng.normal(mu, sigma, size=size)
     return np.floor(draw/q) * q
 
 
 @implicit_stochastic
 @scope.define
-def exp_normal(mu, sigma, rng=None, size=()):
+def lognormal(mu, sigma, rng=None, size=()):
     draw = rng.normal(mu, sigma, size=size)
     return np.exp(draw)
 
 
-# -- RANDINT
+@implicit_stochastic
+@scope.define
+def qlognormal(mu, sigma, q, rng=None, size=()):
+    draw = np.exp(rng.normal(mu, sigma, size=size))
+    return np.floor(draw/q) * q
+
+
+# -- CATEGORICAL
 
 
 @implicit_stochastic
@@ -91,6 +105,24 @@ def randint(upper, rng=None, size=()):
             assert len(upper) == size[0]
             return np.asarray([rng.randint(uu) for uu in upper])
     return rng.randint(upper, size=size)
+
+
+@implicit_stochastic
+@scope.define
+def categorical(p, rng=None, size=()):
+    """Draws i with probability p[i]"""
+    #XXX: OMG this is the craziest shit
+    n_draws = numpy.prod(size)
+    sample = rng.multinomial(n=1, pvals=p, size=tuple(size))
+    assert sample.shape == tuple(shp) + (len(p),)
+    if tuple(shp):
+        rval = numpy.sum(sample * numpy.arange(len(p)), axis=len(shp))
+    else:
+        rval = [numpy.where(rng.multinomial(pvals=p, n=1))[0][0]
+                for i in xrange(n_draws)]
+        rval = numpy.asarray(rval, dtype=self.otype.dtype)
+    assert (rval.shape == shp).all()
+    return rval
 
 
 @implicit_stochastic
@@ -133,9 +165,10 @@ def replace_implicit_stochastic_nodes(expr, rng, scope=scope):
     return expr, new_lrng
 
 
-def replace_repeat_stochastic(expr):
+def replace_repeat_stochastic(expr, return_memo=False):
     stoch = implicit_stochastic_symbols
     nodes = dfs(expr)
+    memo = {}
     for ii, orig in enumerate(nodes):
         # SEE REPLACE ABOVE AS WELL
         # XXX NOT GOOD! WRITE PATTERNS FOR SUCH THINGS!
@@ -157,5 +190,9 @@ def replace_repeat_stochastic(expr):
                 client.replace_input(orig, vnode)
             if expr is orig:
                 expr = vnode
-    return expr
+            memo[orig] = vnode
+    if return_memo:
+        return expr, memo
+    else:
+        return expr
 

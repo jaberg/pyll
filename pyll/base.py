@@ -155,6 +155,25 @@ class Apply(object):
     def __radd__(self, other):
         return scope.add(other, self)
 
+    def __sub__(self, other):
+        return scope.sub(self, other)
+
+    def __rsub__(self, other):
+        return scope.sub(other, self)
+
+    def __mul__(self, other):
+        return scope.mul(self, other)
+
+    def __rmul__(self, other):
+        return scope.mul(other, self)
+
+    def __div__(self, other):
+        return scope.div(self, other)
+
+    def __rdiv__(self, other):
+        return scope.div(other, self)
+
+
     def __getitem__(self, idx):
         if self.o_len is not None and isinstance(idx, int):
             if idx >= self.o_len:
@@ -273,8 +292,41 @@ def add(a, b):
 
 
 @scope.define
+def sub(a, b):
+    return a - b
+
+
+@scope.define
+def mul(a, b):
+    return a * b
+
+
+@scope.define
+def div(a, b):
+    return a / b
+
+
+@scope.define
 def exp(a):
     return np.exp(a)
+
+
+@scope.define
+def log(a):
+    return np.log(a)
+
+
+@scope.define
+def sum(x, axis=None):
+    if axis is None:
+        return np.sum(x)
+    else:
+        return np.sum(x, axis=axis)
+
+
+@scope.define
+def sqrt(x):
+    return np.sqrt(x)
 
 
 @scope.define
@@ -282,6 +334,11 @@ def array_union(a, b):
     sa = set(a)
     sa.update(b)
     return np.asarray(sorted(sa))
+
+
+@scope.define
+def bincount(x, weights=None, minlength=None):
+    return np.bincount(x, weights, minlength)
 
 
 @scope.define
