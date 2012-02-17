@@ -198,7 +198,6 @@ def replace_repeat_stochastic(expr, return_memo=False):
 
 
 def sample(expr, rng):
-    foo = replace_implicit_stochastic_nodes(expr,
-            pyll.Literal(rng))
+    foo, newrng = replace_implicit_stochastic_nodes(expr, as_apply(rng))
     return rec_eval(foo)
 
