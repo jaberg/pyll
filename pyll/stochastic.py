@@ -152,38 +152,6 @@ def recursive_set_rng_kwarg(expr, rng):
     return expr
 
 
-def replace_repeat_stochastic(expr, return_memo=False):
-    stoch = implicit_stochastic_symbols
-    nodes = dfs(expr)
-    memo = {}
-    for ii, orig in enumerate(nodes):
-        # SEE REPLACE ABOVE AS WELL
-        # XXX NOT GOOD! WRITE PATTERNS FOR SUCH THINGS!
-        if orig.name == 'idxs_map' and orig.pos_args[1]._obj in stoch:
-            idxs = orig.pos_args[0]
-            dist = orig.pos_args[1]._obj
-            inputs = []
-            for arg in orig.inputs()[2:]:
-                assert arg.name == 'pos_args'
-                assert arg.pos_args[0] is idxs, str(orig)
-                inputs.append(arg.pos_args[1])
-            if orig.named_args:
-                raise NotImplementedError('')
-            vnode = Apply(dist, inputs, orig.named_args, None)
-            n_times = scope.len(idxs)
-            vnode.named_args.append(['size', n_times])
-            # -- loop over all nodes that *use* this one, and change them
-            for client in nodes[ii+1:]:
-                client.replace_input(orig, vnode)
-            if expr is orig:
-                expr = vnode
-            memo[orig] = vnode
-    if return_memo:
-        return expr, memo
-    else:
-        return expr
-
-
 def sample(expr, rng):
     foo = recursive_set_rng_kwarg(clone(expr), as_apply(rng))
     return rec_eval(foo)
