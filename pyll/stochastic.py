@@ -112,16 +112,21 @@ def randint(upper, rng=None, size=()):
 def categorical(p, rng=None, size=()):
     """Draws i with probability p[i]"""
     #XXX: OMG this is the craziest shit
+    p = np.asarray(p)
+    if isinstance(size, (int, np.number)):
+        size = (size,)
+    else:
+        size = tuple(size)
     n_draws = np.prod(size)
-    sample = rng.multinomial(n=1, pvals=p, size=tuple(size))
-    assert sample.shape == tuple(shp) + (len(p),)
-    if tuple(shp):
-        rval = np.sum(sample * np.arange(len(p)), axis=len(shp))
+    sample = rng.multinomial(n=1, pvals=p, size=size)
+    assert sample.shape == size + (len(p),)
+    if size:
+        rval = np.sum(sample * np.arange(len(p)), axis=len(size))
     else:
         rval = [np.where(rng.multinomial(pvals=p, n=1))[0][0]
                 for i in xrange(n_draws)]
         rval = np.asarray(rval, dtype=self.otype.dtype)
-    assert (rval.shape == shp).all()
+    rval.shape = size
     return rval
 
 

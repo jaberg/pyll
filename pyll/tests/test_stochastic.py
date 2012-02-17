@@ -15,11 +15,13 @@ def test_replace_repeat_stochastic():
     print foo
     dfs(foo)
 
+
 def test_sample_deterministic():
     aa = as_apply([0, 1])
     print aa
     dd = sample(aa, np.random.RandomState(3))
     assert dd == (0, 1)
+
 
 def test_repeatable():
     u = scope.uniform(0, 1)
@@ -32,6 +34,7 @@ def test_repeatable():
     dd3 = sample(aa, np.random.RandomState(4))
     assert dd1 == dd2
     assert dd1 != dd3
+
 
 def test_sample():
     u = scope.uniform(0, 1)
@@ -46,6 +49,4 @@ def test_sample():
     assert dd['u'] == dd['l'][3]
     assert dd['l'][:2] == (0, 1)
     assert dd['l'][2] in (2, 3)
-
-
 

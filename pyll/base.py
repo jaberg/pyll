@@ -19,7 +19,6 @@ class SymbolTable(object):
     def __init__(self):
         # -- list and dict are special because they are Python builtins
         self._impls = {
-                'pos_args': lambda *x: x,
                 'list': list,
                 'dict': dict,
                 'range': range,
@@ -137,13 +136,25 @@ class Apply(object):
                 rval.append(ii + len(self.pos_args))
         return rval
 
-    def pprint(self, ofile, indent=0):
-        print >> ofile, ' ' * indent + self.name
-        for arg in self.pos_args:
-            arg.pprint(ofile, indent+2)
-        for name, arg in self.named_args:
-            print >> ofile, ' ' * indent + ' ' + name + ' ='
-            arg.pprint(ofile, indent+2)
+    def pprint(self, ofile, lineno=None, indent=0, memo=None):
+        if memo is None:
+            memo = {}
+        if lineno is None:
+            lineno = [0]
+
+        if self in memo:
+            print >> ofile, lineno[0], ' ' * indent + memo[self]
+            lineno[0] += 1
+        else:
+            memo[self] = self.name + ('  [line:%i]' % lineno[0])
+            print >> ofile, lineno[0], ' ' * indent + self.name
+            lineno[0] += 1
+            for arg in self.pos_args:
+                arg.pprint(ofile, lineno, indent + 2, memo)
+            for name, arg in self.named_args:
+                print >> ofile, lineno[0], ' ' * indent + ' ' + name + ' ='
+                lineno[0] += 1
+                arg.pprint(ofile, lineno, indent + 2, memo)
 
     def __str__(self):
         sio = StringIO()
@@ -202,8 +213,18 @@ class Literal(Apply):
     def obj(self):
         return self._obj
 
-    def pprint(self, ofile, indent=0):
-        print >> ofile, ' ' * indent + ('Literal{%s}' % str(self._obj))
+    def pprint(self, ofile, lineno=None, indent=0, memo=None):
+        if lineno is None:
+            lineno = [0]
+        if memo is None:
+            memo = {}
+        if self in memo:
+            print >> ofile, lineno[0], ' ' * indent + memo[self]
+        else:
+            msg = 'Literal{%s}' % str(self._obj)
+            memo[self] =  '%s  [line:%i]' % (msg, lineno[0])
+            print >> ofile, lineno[0], ' ' * indent + msg
+        lineno[0] += 1
 
     def replace_input(self, old_node, new_node):
         return []
@@ -273,12 +294,26 @@ def rec_eval(node, scope=scope):
             else:
                 args = [memo[id(v)] for v in node.pos_args]
                 kwargs = dict([(k, memo[id(v)]) for (k, v) in node.named_args])
-                memo[id(node)] = rval = scope._impls[node.name](*args, **kwargs)
+                try:
+                    rval = scope._impls[node.name](*args, **kwargs)
+                except Exception, e:
+                    print '=' * 80
+                    print 'ERROR in rec_eval'
+                    print 'EXCEPTION', type(e), str(e)
+                    print 'NODE'
+                    print node
+                    print '=' * 80
+                    raise
+                memo[id(node)] = rval
     return memo[id(topnode)]
 
 
 ################################################################################
 ################################################################################
+
+@scope.define
+def pos_args(*args):
+    return args
 
 
 @scope.define
