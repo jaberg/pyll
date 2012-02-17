@@ -94,29 +94,6 @@ def test_as_apply_nested_dict():
     assert ad.named_args[1][1].named_args[1][1]._obj == 12
 
 
-def test_lnorm():
-    G = scope
-    choice = G.choice
-    uniform = G.uniform
-    quantized_uniform = G.quniform
-
-    inker_size = quantized_uniform(low=0, high=7.99, q=2) + 3
-    # -- test that it runs
-    lnorm = as_apply({'kwargs': {'inker_shape' : (inker_size, inker_size),
-             'outker_shape' : (inker_size, inker_size),
-             'remove_mean' : choice([0, 1]),
-             'stretch' : uniform(low=0, high=10),
-             'threshold' : uniform(
-                 low=.1 / np.sqrt(10.),
-                 high=10 * np.sqrt(10))
-             }})
-    print lnorm
-    print 'len', len(str(lnorm))
-    # not sure what to assert
-    # ... this is too fagile
-    # assert len(str(lnorm)) == 980
-
-
 def test_dfs():
     dd = as_apply({'c':11, 'd':12})
 
