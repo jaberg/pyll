@@ -37,12 +37,21 @@ def test_as_apply_list_of_literals():
     al = as_apply(l)
     assert isinstance(al, Apply)
     assert al.name == 'pos_args'
-    assert len(al) == 2
     assert isinstance(al.pos_args[0], Literal)
     assert isinstance(al.pos_args[1], Literal)
     al.pos_args[0]._obj == 9
     al.pos_args[1]._obj == 3
 
+def test_as_apply_tuple_of_literals():
+    l = (9, 3)
+    al = as_apply(l)
+    assert isinstance(al, Apply)
+    assert al.name == 'pos_args'
+    assert isinstance(al.pos_args[0], Literal)
+    assert isinstance(al.pos_args[1], Literal)
+    al.pos_args[0]._obj == 9
+    al.pos_args[1]._obj == 3
+    assert len(al) == 2
 
 def test_as_apply_list_of_applies():
     alist = [as_apply(i) for i in range(5)]
