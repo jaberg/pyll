@@ -162,7 +162,7 @@ def replace_implicit_stochastic_nodes(expr, rng, scope=scope):
             if expr is orig:
                 expr = draw
             lrng = new_lrng
-    return expr, new_lrng
+    return expr, lrng
 
 
 def replace_repeat_stochastic(expr, return_memo=False):

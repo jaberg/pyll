@@ -342,6 +342,14 @@ def array_union(a, b):
 
 
 @scope.define
+def asarray(a, dtype=None):
+    if dtype is None:
+        return np.asarray(a)
+    else:
+        return np.asarray(a, dtype=dtype)
+
+
+@scope.define
 def bincount(x, weights=None, minlength=None):
     return np.bincount(x, weights, minlength)
 
