@@ -98,7 +98,7 @@ def test_lnorm():
     G = scope
     choice = G.choice
     uniform = G.uniform
-    quantized_uniform = G.quantized_uniform
+    quantized_uniform = G.quniform
 
     inker_size = quantized_uniform(low=0, high=7.99, q=2) + 3
     # -- test that it runs
@@ -112,7 +112,7 @@ def test_lnorm():
              }})
     print lnorm
     print 'len', len(str(lnorm))
-    assert len(str(lnorm)) == 1016
+    assert len(str(lnorm)) == 980
 
 
 def test_dfs():
