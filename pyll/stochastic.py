@@ -4,7 +4,7 @@ Constructs for annotating base graphs.
 import sys
 import numpy as np
 
-from .base import scope, as_apply, dfs, Apply, rec_eval
+from .base import scope, as_apply, dfs, Apply, rec_eval, clone
 
 ################################################################################
 ################################################################################
@@ -198,6 +198,6 @@ def replace_repeat_stochastic(expr, return_memo=False):
 
 
 def sample(expr, rng):
-    foo, newrng = replace_implicit_stochastic_nodes(expr, as_apply(rng))
+    foo, newrng = replace_implicit_stochastic_nodes(clone(expr), as_apply(rng))
     return rec_eval(foo)
 

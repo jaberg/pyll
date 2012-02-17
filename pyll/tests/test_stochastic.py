@@ -21,6 +21,17 @@ def test_sample_deterministic():
     dd = sample(aa, np.random.RandomState(3))
     assert dd == (0, 1)
 
+def test_repeatable():
+    u = scope.uniform(0, 1)
+    aa = as_apply(dict(
+                u = u,
+                n = scope.normal(5, 0.1),
+                l = [0, 1, scope.one_of(2, 3), u]))
+    dd1 = sample(aa, np.random.RandomState(3))
+    dd2 = sample(aa, np.random.RandomState(3))
+    dd3 = sample(aa, np.random.RandomState(4))
+    assert dd1 == dd2
+    assert dd1 != dd3
 
 def test_sample():
     u = scope.uniform(0, 1)
