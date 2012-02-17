@@ -124,11 +124,9 @@ def categorical(p, rng=None, size=()):
     return rval
 
 
-@implicit_stochastic
-@scope.define
-def choice(args, rng=None):
-    ii = rng.randint(len(args))
-    return args[ii]
+def choice(args):
+    return scope.one_of(*args)
+scope.choice = choice
 
 
 @implicit_stochastic
