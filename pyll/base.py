@@ -20,6 +20,7 @@ class SymbolTable(object):
         # -- list and dict are special because they are Python builtins
         self._impls = {
                 'pos_args': lambda *x: x,
+                'list': list,
                 'dict': dict,
                 'range': range,
                 'len': len,
@@ -35,7 +36,7 @@ class SymbolTable(object):
                 o_len=o_len)
 
     def list(self, init):
-        return self._new_apply('pos_args', init, {}, o_len=len(init))
+        return self._new_apply('list', [as_apply(init)], {}, o_len=None)
 
     def dict(self, *args, **kwargs):
         # XXX: figure out len
@@ -196,6 +197,10 @@ class Literal(Apply):
             o_len = None
         Apply.__init__(self, 'literal', [], {}, o_len)
         self._obj = obj
+
+    @property
+    def obj(self):
+        return self._obj
 
     def pprint(self, ofile, indent=0):
         print >> ofile, ' ' * indent + ('Literal{%s}' % str(self._obj))

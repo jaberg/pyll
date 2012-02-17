@@ -4,7 +4,7 @@ Constructs for annotating base graphs.
 import sys
 import numpy as np
 
-from .base import scope, as_apply, dfs, Apply
+from .base import scope, as_apply, dfs, Apply, rec_eval
 
 ################################################################################
 ################################################################################
@@ -112,15 +112,15 @@ def randint(upper, rng=None, size=()):
 def categorical(p, rng=None, size=()):
     """Draws i with probability p[i]"""
     #XXX: OMG this is the craziest shit
-    n_draws = numpy.prod(size)
+    n_draws = np.prod(size)
     sample = rng.multinomial(n=1, pvals=p, size=tuple(size))
     assert sample.shape == tuple(shp) + (len(p),)
     if tuple(shp):
-        rval = numpy.sum(sample * numpy.arange(len(p)), axis=len(shp))
+        rval = np.sum(sample * np.arange(len(p)), axis=len(shp))
     else:
-        rval = [numpy.where(rng.multinomial(pvals=p, n=1))[0][0]
+        rval = [np.where(rng.multinomial(pvals=p, n=1))[0][0]
                 for i in xrange(n_draws)]
-        rval = numpy.asarray(rval, dtype=self.otype.dtype)
+        rval = np.asarray(rval, dtype=self.otype.dtype)
     assert (rval.shape == shp).all()
     return rval
 
@@ -195,4 +195,10 @@ def replace_repeat_stochastic(expr, return_memo=False):
         return expr, memo
     else:
         return expr
+
+
+def sample(expr, rng):
+    foo = replace_implicit_stochastic_nodes(expr,
+            pyll.Literal(rng))
+    return rec_eval(foo)
 
