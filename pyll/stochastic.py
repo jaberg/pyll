@@ -20,12 +20,6 @@ def implicit_stochastic(f):
     return f
 
 
-@scope.define_info(o_len=2)
-def draw_rng(rng, f_name, *args, **kwargs):
-    draw = scope._impls[f_name](*args, rng=rng, **kwargs)
-    return draw, rng
-
-
 @scope.define
 def rng_from_seed(seed):
     return np.random.RandomState(seed)
@@ -147,27 +141,17 @@ def one_of(*args, **kwargs):
     return args[ii]
 
 
-def replace_implicit_stochastic_nodes(expr, rng, scope=scope):
+def recursive_set_rng_kwarg(expr, rng):
     """
     Make all of the stochastic nodes in expr use the rng
 
-    uniform(0, 1) -> getitem(draw_rng(rng, 'uniform', 0, 1), 1)
+    uniform(0, 1) -> uniform(0, 1, rng=rng)
     """
     lrng = as_apply(rng)
-    nodes = dfs(expr)
-    for ii, orig in enumerate(nodes):
-        if orig.name in implicit_stochastic_symbols:
-            obj = scope.draw_rng(lrng, orig.name)
-            obj.pos_args += orig.pos_args
-            obj.named_args += orig.named_args
-            draw, new_lrng = obj
-            # -- loop over all nodes that *use* this one, and change them
-            for client in nodes[ii+1:]:
-                client.replace_input(orig, draw)
-            if expr is orig:
-                expr = draw
-            lrng = new_lrng
-    return expr, lrng
+    for node in dfs(expr):
+        if node.name in implicit_stochastic_symbols:
+            node.named_args.append(('rng', lrng))
+    return expr
 
 
 def replace_repeat_stochastic(expr, return_memo=False):
@@ -203,6 +187,6 @@ def replace_repeat_stochastic(expr, return_memo=False):
 
 
 def sample(expr, rng):
-    foo, newrng = replace_implicit_stochastic_nodes(clone(expr), as_apply(rng))
+    foo = recursive_set_rng_kwarg(clone(expr), as_apply(rng))
     return rec_eval(foo)
 

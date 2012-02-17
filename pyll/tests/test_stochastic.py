@@ -3,19 +3,6 @@ from pyll import scope, as_apply, dfs
 from pyll.stochastic import *
 
 
-def test_replace_repeat_stochastic():
-    # just test that it runs
-    # test_sample is a more demanding test
-    rng = np.random.RandomState(955)
-    aa = as_apply(dict(
-                u = scope.uniform(0, 1),
-                n = scope.normal(5, 0.1),
-                l = [0, 1, scope.one_of(2, 3)]))
-    foo, new_rng = replace_implicit_stochastic_nodes(aa, as_apply(rng))
-    print foo
-    dfs(foo)
-
-
 def test_sample_deterministic():
     aa = as_apply([0, 1])
     print aa

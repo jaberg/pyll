@@ -134,10 +134,15 @@ def test_dfs():
     assert len(order) == 7
 
 
+@scope.define_info(o_len=2)
+def _test_foo():
+    return 1, 2
+
 def test_o_len():
-    obj = scope.draw_rng()
+    obj = scope._test_foo()
     x, y = obj
     assert x.name == 'getitem'
     assert x.pos_args[1]._obj == 0
+    assert y.pos_args[1]._obj == 1
 
 
