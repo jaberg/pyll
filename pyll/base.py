@@ -73,8 +73,10 @@ def as_apply(obj):
     """
     if isinstance(obj, Apply):
         rval = obj
-    elif isinstance(obj, (tuple, list)):
+    elif isinstance(obj, tuple):
         rval = Apply('pos_args', [as_apply(a) for a in obj], {}, len(obj))
+    elif isinstance(obj, list):
+        rval = Apply('pos_args', [as_apply(a) for a in obj], {}, None)
     elif isinstance(obj, dict):
         items = obj.items()
         # -- should be fine to allow numbers and simple things
@@ -266,17 +268,13 @@ def clone(expr, memo=None):
 ################################################################################
 
 
-
-################################################################################
-################################################################################
-
-
-def rec_eval(node, scope=scope):
+def rec_eval(node):
     """
     Returns nodes required by this one.
     Updates the memo by side effect. Returning [] means this node has been
     computed and the value is available as memo[id(node)]
     """
+    node = as_apply(node)
     memo = {}
     for aa in dfs(node):
         if isinstance(aa, Literal):
