@@ -2,7 +2,7 @@ import numpy as np
 from pyll import scope, as_apply, dfs, rec_eval
 from pyll.stochastic import *
 
-def test_replace_implicit_stochastic_nodes_multi():
+def test_recursive_set_rng_kwarg():
     uniform = scope.uniform
     a = as_apply([uniform(0, 1), uniform(2, 3)])
     rng = np.random.RandomState(234)
@@ -34,7 +34,6 @@ def test_lnorm():
     # not sure what to assert
     # ... this is too fagile
     # assert len(str(lnorm)) == 980
-
 
 
 def test_sample_deterministic():
@@ -71,3 +70,11 @@ def test_sample():
     assert dd['l'][:2] == (0, 1)
     assert dd['l'][2] in (2, 3)
 
+
+def test_qlognormal_never_0():
+    rng = np.random.RandomState(234)
+    s = scope.qlognormal(-5, 3, 0.1)
+    recursive_set_rng_kwarg(s, rng)
+    results = [rec_eval(s) for i in range(100)]
+    assert min(results) == 0.1
+    assert max(results) != 0.1
