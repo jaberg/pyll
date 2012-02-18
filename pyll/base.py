@@ -108,6 +108,33 @@ class Apply(object):
         assert all(isinstance(v, Apply) for k, v in named_args)
         assert all(isinstance(k, basestring) for k, v in named_args)
 
+    def eval(self, memo=None):
+        """
+        Recursively evaluate an expression graph.
+
+        It also makes no attempt to modify or optimize the expression graph.
+
+        :note: 
+            If there are nodes in the graph that do not represent expressions,
+            (e.g. nodes that correspond to statement blocks or assertions)
+            then it's not clear what this routine should do, and you should
+            probably not call it.
+
+            However, for many cases that are pure expression graphs, this
+            offers a quick and simple way to evaluate them.
+        """
+        if memo is None:
+            memo = {}
+        if id(self) in memo:
+            return memo[id(self)]
+        else:
+            args = [a.eval() for a in self.pos_args]
+            kwargs = dict([(n, a.eval()) for (n, a) in self.named_args])
+            f = scope._impls[self.name]
+            memo[id(self)] = rval = f(*args, **kwargs)
+            return rval
+
+
     def inputs(self):
         rval = self.pos_args + [v for (k, v) in self.named_args]
         assert all(isinstance(arg, Apply) for arg in rval)
@@ -124,7 +151,6 @@ class Apply(object):
         if o_len == 'same':
             o_len = self.o_len
         return self.__class__(self.name, pos_args, named_args, o_len)
-
 
     def replace_input(self, old_node, new_node):
         rval = []
@@ -211,6 +237,11 @@ class Literal(Apply):
         Apply.__init__(self, 'literal', [], {}, o_len)
         self._obj = obj
 
+    def eval(self, memo=None):
+        if memo is None:
+            memo = {}
+        return memo.setdefault(id(self), self._obj)
+
     @property
     def obj(self):
         return self._obj
@@ -270,9 +301,7 @@ def clone(expr, memo=None):
 
 def rec_eval(node):
     """
-    Returns nodes required by this one.
-    Updates the memo by side effect. Returning [] means this node has been
-    computed and the value is available as memo[id(node)]
+    XXX
     """
     node = as_apply(node)
     memo = {}

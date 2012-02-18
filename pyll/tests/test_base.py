@@ -131,4 +131,22 @@ def test_o_len():
     assert x.pos_args[1]._obj == 0
     assert y.pos_args[1]._obj == 1
 
+def test_eval_arithmetic():
+    a, b, c = as_apply((2, 3, 4))
+
+    assert (a + b).eval() == 5
+    assert (a + b + c).eval() == 9
+    assert (a + b + 1 + c).eval() == 10
+
+    assert (a * b).eval() == 6
+    assert (a * b * c * (-1)).eval() == -24
+
+    assert (a - b).eval() == -1
+    assert (a - b * c).eval() == -10
+
+    assert (a / b).eval() == 0   # int div
+    assert (b / a).eval() == 1   # int div
+    assert (c / a ).eval() == 2
+    assert (4 / a).eval() == 2
+    assert (a / 4.0).eval() == 0.5
 
