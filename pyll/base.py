@@ -112,9 +112,10 @@ class Apply(object):
         """
         Recursively evaluate an expression graph.
 
-        It also makes no attempt to modify or optimize the expression graph.
+        This method operates directly on the graph of extended inputs to this
+        node, making no attempt to modify or optimize the expression graph.
 
-        :note: 
+        :note:
             If there are nodes in the graph that do not represent expressions,
             (e.g. nodes that correspond to statement blocks or assertions)
             then it's not clear what this routine should do, and you should
@@ -299,28 +300,46 @@ def clone(expr, memo=None):
 ################################################################################
 
 
-def rec_eval(node):
+def rec_eval(expr, deepcopy_inputs=False, memo=None):
     """
-    XXX
+    expr - pyll Apply instance to be evaluated
+
+    memo - optional dictionary of values to use for particular nodes
+
+    deepcopy_inputs - deepcopy inputs to every node prior to calling that
+        node's function on those inputs. If this leads to a different return
+        value, then some function (XXX add more complete DebugMode
+        functionality) in your graph is modifying its inputs and causing
+        mis-calculation. XXX: This is not a fully-functional DebugMode because
+        if the offender happens on account of the toposort order to be the last
+        user of said input, then it will not be detected as a potential
+        problem.
+
     """
-    node = as_apply(node)
-    memo = {}
+    node = as_apply(expr)
+    if memo is None:
+        memo = {}
     for aa in dfs(node):
         if isinstance(aa, Literal):
-            memo[id(aa)] = aa._obj
+            memo[aa] = aa._obj
     todo = [node]
     topnode = node
     while todo:
         if len(todo) > 100000:
             raise RuntimeError('Probably infinite loop in document')
         node = todo.pop()
-        if id(node) not in memo:
-            waiting_on = [v for v in node.inputs() if id(v) not in memo]
+        if node not in memo:
+            waiting_on = [v for v in node.inputs() if v not in memo]
             if waiting_on:
                 todo.extend([node] + waiting_on)
             else:
-                args = [memo[id(v)] for v in node.pos_args]
-                kwargs = dict([(k, memo[id(v)]) for (k, v) in node.named_args])
+                args = _args = [memo[v] for v in node.pos_args]
+                kwargs = _kwargs = dict([(k, memo[v])
+                    for (k, v) in node.named_args])
+                if deepcopy_inputs:
+                    import copy
+                    args = copy.deepcopy(_args)
+                    kwargs = copy.deepcopy(_kwargs)
                 try:
                     rval = scope._impls[node.name](*args, **kwargs)
                 except Exception, e:
@@ -331,8 +350,8 @@ def rec_eval(node):
                     print node
                     print '=' * 80
                     raise
-                memo[id(node)] = rval
-    return memo[id(topnode)]
+                memo[node] = rval
+    return memo[topnode]
 
 
 ################################################################################
