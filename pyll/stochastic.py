@@ -153,6 +153,6 @@ def recursive_set_rng_kwarg(expr, rng):
 
 
 def sample(expr, rng):
-    foo = recursive_set_rng_kwarg(clone(expr), as_apply(rng))
+    foo = recursive_set_rng_kwarg(clone(as_apply(expr)), as_apply(rng))
     return rec_eval(foo)
 
