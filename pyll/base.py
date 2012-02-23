@@ -23,6 +23,8 @@ class SymbolTable(object):
                 'dict': dict,
                 'range': range,
                 'len': len,
+                'int': int,
+                'float': float,
                 }
 
     def _new_apply(self, name, args, kwargs, o_len):
@@ -33,6 +35,12 @@ class SymbolTable(object):
                 pos_args=pos_args,
                 named_args=named_args,
                 o_len=o_len)
+
+    def int(self, arg):
+        return self._new_apply('int', [as_apply(arg)], {}, o_len=None)
+
+    def float(self, arg):
+        return self._new_apply('float', [as_apply(arg)], {}, o_len=None)
 
     def list(self, init):
         return self._new_apply('list', [as_apply(init)], {}, o_len=None)
