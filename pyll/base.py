@@ -440,7 +440,12 @@ def asarray(a, dtype=None):
 
 @scope.define
 def bincount(x, weights=None, minlength=None):
-    return np.bincount(x, weights, minlength)
+    if x:
+        return np.bincount(x, weights, minlength)
+    else:
+        # -- currently numpy rejects this case,
+        #    but it seems sensible enough to me.
+        return np.zeros(minlength, dtype='int')
 
 
 @scope.define
