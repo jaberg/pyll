@@ -4,7 +4,10 @@
 #
 
 from StringIO import StringIO
-import numpy as np # -- for array union
+
+# TODO: move things depending on numpy (among others too) to a library file
+import numpy as np
+np_versions = map(int, np.__version__.split('.'))
 
 class SymbolTable(object):
     """
@@ -438,14 +441,33 @@ def asarray(a, dtype=None):
         return np.asarray(a, dtype=dtype)
 
 
+def _bincount_slow(x, weights=None, minlength=None):
+    """backport of np.bincount post numpy 1.6
+    """
+    if weights is not None:
+        raise NotImplementedError()
+    if minlength is None:
+        rlen = np.max(x) + 1
+    else:
+        rlen = max(np.max(x) + 1, minlength)
+    rval = np.zeros(rlen, dtype='int')
+    for xi in np.asarray(x).flatten():
+        rval[xi] += 1
+    return rval
+
+
 @scope.define
 def bincount(x, weights=None, minlength=None):
-    if x:
-        return np.bincount(x, weights, minlength)
+    if np_versions[0] == 1 and np_versions[1] < 6:
+        # -- np.bincount doesn't have minlength arg
+        return _bincount_slow(x, weights, minlength)
     else:
-        # -- currently numpy rejects this case,
-        #    but it seems sensible enough to me.
-        return np.zeros(minlength, dtype='int')
+        if np.asarray(x).size:
+            return np.bincount(x, weights, minlength)
+        else:
+            # -- currently numpy rejects this case,
+            #    but it seems sensible enough to me.
+            return np.zeros(minlength, dtype='int')
 
 
 @scope.define

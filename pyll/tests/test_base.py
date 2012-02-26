@@ -1,4 +1,5 @@
 from pyll.base import *
+from pyll import base
 import numpy as np
 
 def test_literal_pprint():
@@ -42,6 +43,7 @@ def test_as_apply_list_of_literals():
     al.pos_args[0]._obj == 9
     al.pos_args[1]._obj == 3
 
+
 def test_as_apply_tuple_of_literals():
     l = (9, 3)
     al = as_apply(l)
@@ -52,6 +54,7 @@ def test_as_apply_tuple_of_literals():
     al.pos_args[0]._obj == 9
     al.pos_args[1]._obj == 3
     assert len(al) == 2
+
 
 def test_as_apply_list_of_applies():
     alist = [as_apply(i) for i in range(5)]
@@ -131,6 +134,7 @@ def test_o_len():
     assert x.pos_args[1]._obj == 0
     assert y.pos_args[1]._obj == 1
 
+
 def test_eval_arithmetic():
     a, b, c = as_apply((2, 3, 4))
 
@@ -149,4 +153,42 @@ def test_eval_arithmetic():
     assert (c / a ).eval() == 2
     assert (4 / a).eval() == 2
     assert (a / 4.0).eval() == 0.5
+
+
+def test_bincount():
+    def test_f(f):
+        r = np.arange(10)
+        counts = f(r)
+        assert isinstance(counts, np.ndarray)
+        assert len(counts) == 10
+        assert np.all(counts == 1)
+
+        r = np.arange(10) + 3
+        counts = f(r)
+        assert isinstance(counts, np.ndarray)
+        assert len(counts) == 13
+        assert np.all(counts[3:] == 1)
+        assert np.all(counts[:3] == 0)
+
+        r = np.arange(10) + 3
+        counts = f(r, minlength=5) # -- ignore minlength
+        assert isinstance(counts, np.ndarray)
+        assert len(counts) == 13
+        assert np.all(counts[3:] == 1)
+        assert np.all(counts[:3] == 0)
+
+        r = np.arange(10) + 3  
+        counts = f(r, minlength=15) # -- pad to minlength
+        assert isinstance(counts, np.ndarray)
+        assert len(counts) == 15
+        assert np.all(counts[:3] == 0)
+        assert np.all(counts[3:13] == 1)
+        assert np.all(counts[13:] == 0)
+
+        r = np.arange(10) % 3 + 3  
+        counts = f(r, minlength=7) # -- pad to minlength
+        assert list(counts) == [0, 0, 0, 4, 3, 3, 0]
+
+    test_f(base._bincount_slow)
+    test_f(base.bincount)
 
