@@ -332,7 +332,7 @@ def rec_eval(expr, deepcopy_inputs=False, memo=None):
         memo = {}
     for aa in dfs(node):
         if isinstance(aa, Literal):
-            memo[aa] = aa._obj
+            memo.setdefault(aa, aa.obj)
     todo = [node]
     topnode = node
     while todo:
