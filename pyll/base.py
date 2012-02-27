@@ -7,7 +7,7 @@ from StringIO import StringIO
 
 # TODO: move things depending on numpy (among others too) to a library file
 import numpy as np
-np_versions = map(int, np.__version__.split('.'))
+np_versions = map(int, np.__version__.split('.')[:2])
 
 class SymbolTable(object):
     """
