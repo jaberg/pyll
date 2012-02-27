@@ -241,7 +241,7 @@ class Apply(object):
 
 
 class Literal(Apply):
-    def __init__(self, obj):
+    def __init__(self, obj=None):
         try:
             o_len = len(obj)
         except TypeError:
