@@ -1,6 +1,10 @@
 from pyll.base import *
-from pyll import base
+
+import nose
 import numpy as np
+
+from pyll import base
+
 
 def test_literal_pprint():
     l = Literal(5)
@@ -191,4 +195,20 @@ def test_bincount():
 
     test_f(base._bincount_slow)
     test_f(base.bincount)
+
+
+def test_switch_and_Raise():
+    i = Literal()
+    ab = scope.switch(i, 'a', 'b', scope.Raise(Exception))
+    assert rec_eval(ab, memo={i: 0}) == 'a'
+    assert rec_eval(ab, memo={i: 1}) == 'b'
+    nose.tools.assert_raises(Exception, rec_eval, ab, memo={i:2})
+
+
+def test_recursion():
+    fact = scope.define_lambda('Fact', ('x', p0),
+            expr=switch(p0 > 1, 1, p0 * call('Fact', p0 - 1)))
+
+    assert rec_eval(fact(3)) == 6
+
 

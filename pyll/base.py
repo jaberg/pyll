@@ -339,29 +339,48 @@ def rec_eval(expr, deepcopy_inputs=False, memo=None):
         if len(todo) > 100000:
             raise RuntimeError('Probably infinite loop in document')
         node = todo.pop()
-        if node not in memo:
-            waiting_on = [v for v in node.inputs() if v not in memo]
-            if waiting_on:
-                todo.extend([node] + waiting_on)
+        if node in memo:
+            continue
+
+        # -- lazily evaluated expressions go here
+        if node.name == 'switch':
+            switch_i_var = node.pos_args[0]
+            if switch_i_var in memo:
+                switch_i = memo[switch_i_var]
+                if switch_i != int(switch_i) or switch_i < 0:
+                    raise ValueError('switch pos must be positive int', switch_i)
+                rval_var = node.pos_args[switch_i + 1]
+                if rval_var in memo:
+                    memo[node] = memo[rval_var]
+                    continue
+                else:
+                    waiting_on = [rval_var]
             else:
-                args = _args = [memo[v] for v in node.pos_args]
-                kwargs = _kwargs = dict([(k, memo[v])
-                    for (k, v) in node.named_args])
-                if deepcopy_inputs:
-                    import copy
-                    args = copy.deepcopy(_args)
-                    kwargs = copy.deepcopy(_kwargs)
-                try:
-                    rval = scope._impls[node.name](*args, **kwargs)
-                except Exception, e:
-                    print '=' * 80
-                    print 'ERROR in rec_eval'
-                    print 'EXCEPTION', type(e), str(e)
-                    print 'NODE'
-                    print node
-                    print '=' * 80
-                    raise
-                memo[node] = rval
+                waiting_on = [switch_i_var]
+        else:
+            waiting_on = [v for v in node.inputs() if v not in memo]
+
+        if waiting_on:
+            todo.extend([node] + waiting_on)
+        else:
+            args = _args = [memo[v] for v in node.pos_args]
+            kwargs = _kwargs = dict([(k, memo[v])
+                for (k, v) in node.named_args])
+            if deepcopy_inputs:
+                import copy
+                args = copy.deepcopy(_args)
+                kwargs = copy.deepcopy(_kwargs)
+            try:
+                rval = scope._impls[node.name](*args, **kwargs)
+            except Exception, e:
+                print '=' * 80
+                print 'ERROR in rec_eval'
+                print 'EXCEPTION', type(e), str(e)
+                print 'NODE'
+                print node
+                print '=' * 80
+                raise
+            memo[node] = rval
     return memo[topnode]
 
 
@@ -473,4 +492,18 @@ def bincount(x, weights=None, minlength=None):
 @scope.define
 def repeat(n_times, obj):
     return [obj] * n_times
+
+
+@scope.define
+def switch(pos, *args):
+    # switch is an unusual expression, in that it affects control flow
+    # when executed with rec_eval. args are not all evaluated, only 
+    # args[pos] is evaluated.
+    ## return args[pos]
+    raise RuntimeError('switch is not meant to be evaluated')
+
+
+@scope.define
+def Raise(etype, *args, **kwargs):
+    raise etype(*args, **kwargs)
 
