@@ -9,6 +9,10 @@ from StringIO import StringIO
 import numpy as np
 np_versions = map(int, np.__version__.split('.')[:2])
 
+class PyllImportError(ImportError):
+    """A pyll symbol was not defined in the scope """
+
+
 class SymbolTable(object):
     """
     An object whose methods generally allocate Apply nodes.
@@ -74,6 +78,23 @@ class SymbolTable(object):
         def wrapper(f):
             return self.define(f, o_len=o_len)
         return wrapper
+
+    def inject(self, *args, **kwargs):
+        rval = {}
+        for k in args:
+            try:
+                rval[k] = getattr(self, k)
+            except AttributeError:
+                raise PyllImportError(k)
+        for k, origk in kwargs.items():
+            try:
+                rval[k] = getattr(self, origk)
+            except AttributeError:
+                raise PyllImportError(origk)
+        return rval
+
+    def import_(self, _globals, *args, **kwargs):
+        _globals.update(self.inject(*args, **kwargs))
 
 
 scope = SymbolTable()
@@ -266,7 +287,12 @@ class Literal(Apply):
         if self in memo:
             print >> ofile, lineno[0], ' ' * indent + memo[self]
         else:
-            msg = 'Literal{%s}' % str(self._obj)
+            # TODO: set up a registry for this
+            if isinstance(self._obj, np.ndarray):
+                msg = 'Literal{np.ndarray,shape=%s,min=%f,max=%f}' % (
+                        self._obj.shape, self._obj.min(), self._obj.max())
+            else:
+                msg = 'Literal{%s}' % str(self._obj)
             memo[self] =  '%s  [line:%i]' % (msg, lineno[0])
             print >> ofile, lineno[0], ' ' * indent + msg
         lineno[0] += 1
