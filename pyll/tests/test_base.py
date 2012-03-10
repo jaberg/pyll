@@ -1,6 +1,10 @@
 from pyll.base import *
-from pyll import base
+
+import nose
 import numpy as np
+
+from pyll import base
+
 
 def test_literal_pprint():
     l = Literal(5)
@@ -191,4 +195,36 @@ def test_bincount():
 
     test_f(base._bincount_slow)
     test_f(base.bincount)
+
+
+def test_switch_and_Raise():
+    i = Literal()
+    ab = scope.switch(i, 'a', 'b', scope.Raise(Exception))
+    assert rec_eval(ab, memo={i: 0}) == 'a'
+    assert rec_eval(ab, memo={i: 1}) == 'b'
+    nose.tools.assert_raises(Exception, rec_eval, ab, memo={i:2})
+
+
+def test_recursion():
+    scope.define(Lambda('Fact', [('x', p0)],
+            expr=scope.switch(
+                p0 > 1,
+                1,
+                p0 * apply('Fact', p0 - 1))))
+    print rec_eval(scope.Fact(3))
+    #assert rec_eval(scope.Fact(3)) == 6
+
+def test_currying():
+    add2 = partial1('add', b=2)
+    sub2 = partial1('sub', b=2)
+    print add2
+    print add2(3)
+    print sub2(3)
+    assert rec_eval(add2(3)) == 5
+    assert rec_eval(sub2(3)) == 1
+
+    # test that currying nothing works
+    add_ = partial2('add')
+    assert rec_eval(add_(4, 3)) == 7
+
 
