@@ -146,7 +146,6 @@ class Apply(object):
             memo[id(self)] = rval = f(*args, **kwargs)
             return rval
 
-
     def inputs(self):
         rval = self.pos_args + [v for (k, v) in self.named_args]
         assert all(isinstance(arg, Apply) for arg in rval)
@@ -225,6 +224,17 @@ class Apply(object):
     def __rdiv__(self, other):
         return scope.div(other, self)
 
+    def __gt__(self, other):
+        return scope.gt(self, other)
+
+    def __ge__(self, other):
+        return scope.ge(self, other)
+
+    def __lt__(self, other):
+        return scope.lt(self, other)
+
+    def __le__(self, other):
+        return scope.le(self, other)
 
     def __getitem__(self, idx):
         if self.o_len is not None and isinstance(idx, int):
@@ -238,6 +248,16 @@ class Apply(object):
         if self.o_len is None:
             return object.__len__(self)
         return self.o_len
+
+
+def apply(name, *args, **kwargs):
+    pos_args = [as_apply(a) for a in args]
+    named_args = [(k, as_apply(v)) for (k, v) in kwargs.items()]
+    named_args.sort()
+    return Apply(name,
+            pos_args=pos_args,
+            named_args=named_args,
+            o_len=None)
 
 
 class Literal(Apply):
@@ -276,6 +296,65 @@ class Literal(Apply):
 
     def clone_from_inputs(self, inputs, o_len='same'):
         return self.__class__(self._obj)
+
+
+class Lambda(object):
+
+    def __init__(self, name, params, expr):
+        self.__name__ = name  # like a python function
+        self.params = params  # list of (name, symbol[, default_value]) tuples
+        self.expr = expr      # pyll graph defining this Lambda
+
+    def __call__(self, *args, **kwargs):
+        # -- return `expr` cloned from given args and kwargs
+        if len(args) > len(self.params):
+            raise TypeError('too many arguments')
+        memo = {}
+        for arg, param in zip(args, self.params):
+            #print 'applying with arg', param, arg
+            memo[param[1]] = as_apply(arg)
+        if len(args) != len(self.params) or kwargs:
+            raise NotImplementedError('named / default arguments')
+        rval = clone(self.expr, memo)
+        #print 'BEFORE'
+        #print self.expr
+        #print 'AFTER'
+        #print rval
+        return rval
+
+
+class UndefinedValue(object):
+    pass
+
+# -- set up some convenience symbols to use as parameters in Lambda definitions
+p0 = Literal(UndefinedValue)
+p1 = Literal(UndefinedValue)
+p2 = Literal(UndefinedValue)
+p3 = Literal(UndefinedValue)
+p4 = Literal(UndefinedValue)
+
+
+def partial1(name, *args, **kwargs):
+    # TODO: introspect the named instruction, to retrieve the
+    #       list of parameters *not* accounted for by args and kwargs
+    # then delete these stupid functions and just have one `partial`
+    temp_name = 'partial_%s_id%i' % (name, len(scope._impls))
+    l = Lambda(temp_name, [('x', p0)],
+            expr=apply(name, *(args + (p0,)), **kwargs))
+    scope.define(l)
+    rval = getattr(scope, temp_name)
+    return rval
+
+def partial2(name, *args, **kwargs):
+    # TODO: introspect the named instruction, to retrieve the
+    #       list of parameters *not* accounted for by args and kwargs
+    # then delete these stupid functions and just have one `partial`
+    temp_name = 'partial_%s_id%i' % (name, len(scope._impls))
+    l = Lambda(temp_name, [('x', p0), ('y', p1)],
+            expr=apply(name, *(args + (p0, p1)), **kwargs))
+    scope.define(l)
+    rval = getattr(scope, temp_name)
+    return rval
 
 
 def dfs(aa, seq=None, seqset=None):
@@ -330,6 +409,9 @@ def rec_eval(expr, deepcopy_inputs=False, memo=None):
     node = as_apply(expr)
     if memo is None:
         memo = {}
+    # TODO: optimize dfs to not recurse past the items in memo
+    #       this is especially important for evaluating Lambdas
+    #       which cause rec_eval to recurse
     for aa in dfs(node):
         if isinstance(aa, Literal):
             memo.setdefault(aa, aa.obj)
@@ -358,6 +440,7 @@ def rec_eval(expr, deepcopy_inputs=False, memo=None):
             else:
                 waiting_on = [switch_i_var]
         else:
+            # -- normal instruction-type node
             waiting_on = [v for v in node.inputs() if v not in memo]
 
         if waiting_on:
@@ -380,7 +463,13 @@ def rec_eval(expr, deepcopy_inputs=False, memo=None):
                 print node
                 print '=' * 80
                 raise
-            memo[node] = rval
+
+            if isinstance(rval, Apply):
+                foo = rec_eval(rval, deepcopy_inputs, memo)
+                memo[node] = foo
+            else:
+                memo[node] = rval
+
     return memo[topnode]
 
 
@@ -420,6 +509,26 @@ def mul(a, b):
 @scope.define
 def div(a, b):
     return a / b
+
+
+@scope.define
+def gt(a, b):
+    return a > b
+
+
+@scope.define
+def ge(a, b):
+    return a >= b
+
+
+@scope.define
+def lt(a, b):
+    return a < b
+
+
+@scope.define
+def le(a, b):
+    return a <= b
 
 
 @scope.define

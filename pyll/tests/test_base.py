@@ -206,9 +206,25 @@ def test_switch_and_Raise():
 
 
 def test_recursion():
-    fact = scope.define_lambda('Fact', ('x', p0),
-            expr=switch(p0 > 1, 1, p0 * call('Fact', p0 - 1)))
+    scope.define(Lambda('Fact', [('x', p0)],
+            expr=scope.switch(
+                p0 > 1,
+                1,
+                p0 * apply('Fact', p0 - 1))))
+    print rec_eval(scope.Fact(3))
+    #assert rec_eval(scope.Fact(3)) == 6
 
-    assert rec_eval(fact(3)) == 6
+def test_currying():
+    add2 = partial1('add', b=2)
+    sub2 = partial1('sub', b=2)
+    print add2
+    print add2(3)
+    print sub2(3)
+    assert rec_eval(add2(3)) == 5
+    assert rec_eval(sub2(3)) == 1
+
+    # test that currying nothing works
+    add_ = partial2('add')
+    assert rec_eval(add_(4, 3)) == 7
 
 
