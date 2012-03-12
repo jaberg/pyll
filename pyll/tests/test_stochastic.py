@@ -70,11 +70,3 @@ def test_sample():
     assert dd['l'][:2] == (0, 1)
     assert dd['l'][2] in (2, 3)
 
-
-def test_qlognormal_never_0():
-    rng = np.random.RandomState(234)
-    s = scope.qlognormal(-5, 3, 0.1)
-    recursive_set_rng_kwarg(s, rng)
-    results = [rec_eval(s) for i in range(100)]
-    assert min(results) == 0.1
-    assert max(results) != 0.1
