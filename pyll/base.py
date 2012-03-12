@@ -586,6 +586,16 @@ def sqrt(x):
 
 
 @scope.define
+def minimum(x, y):
+    return np.minimum(x, y)
+
+
+@scope.define
+def maximum(x, y):
+    return np.maximum(x, y)
+
+
+@scope.define
 def array_union(a, b):
     sa = set(a)
     sa.update(b)
