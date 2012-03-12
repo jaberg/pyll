@@ -9,6 +9,7 @@ from StringIO import StringIO
 import numpy as np
 np_versions = map(int, np.__version__.split('.')[:2])
 
+
 class PyllImportError(ImportError):
     """A pyll symbol was not defined in the scope """
 
@@ -68,8 +69,10 @@ class SymbolTable(object):
         name = f.__name__
         if hasattr(self, name):
             raise ValueError('Cannot override existing symbol', name)
+
         def apply_f(*args, **kwargs):
             return self._new_apply(name, args, kwargs, o_len)
+
         setattr(self, name, apply_f)
         self._impls[name] = f
         return f
@@ -176,7 +179,7 @@ class Apply(object):
         if len(inputs) != len(self.inputs()):
             raise TypeError()
         L = len(self.pos_args)
-        pos_args  = list(inputs[:L])
+        pos_args = list(inputs[:L])
         named_args = [[kw, inputs[L + ii]]
                 for ii, (kw, arg) in enumerate(self.named_args)]
         # -- danger cloning with new inputs can change the o_len
@@ -219,7 +222,7 @@ class Apply(object):
     def __str__(self):
         sio = StringIO()
         self.pprint(sio)
-        return sio.getvalue()[:-1] # -- remove trailing '\n'
+        return sio.getvalue()[:-1]  # remove trailing '\n'
 
     def __add__(self, other):
         return scope.add(self, other)
@@ -313,7 +316,7 @@ class Literal(Apply):
                         self._obj.shape, self._obj.min(), self._obj.max())
             else:
                 msg = 'Literal{%s}' % str(self._obj)
-            memo[self] =  '%s  [line:%i]' % (msg, lineno[0])
+            memo[self] = '%s  [line:%i]' % (msg, lineno[0])
             print >> ofile, lineno[0], ' ' * indent + msg
         lineno[0] += 1
 
@@ -371,6 +374,7 @@ def partial1(name, *args, **kwargs):
     rval = getattr(scope, temp_name)
     return rval
 
+
 def partial2(name, *args, **kwargs):
     # TODO: introspect the named instruction, to retrieve the
     #       list of parameters *not* accounted for by args and kwargs
@@ -412,8 +416,8 @@ def clone(expr, memo=None):
     return memo[expr]
 
 
-################################################################################
-################################################################################
+##############################################################################
+##############################################################################
 
 
 def rec_eval(expr, deepcopy_inputs=False, memo=None):
@@ -456,7 +460,8 @@ def rec_eval(expr, deepcopy_inputs=False, memo=None):
             if switch_i_var in memo:
                 switch_i = memo[switch_i_var]
                 if switch_i != int(switch_i) or switch_i < 0:
-                    raise ValueError('switch pos must be positive int', switch_i)
+                    raise ValueError('switch pos must be positive int',
+                            switch_i)
                 rval_var = node.pos_args[switch_i + 1]
                 if rval_var in memo:
                     memo[node] = memo[rval_var]
@@ -499,8 +504,8 @@ def rec_eval(expr, deepcopy_inputs=False, memo=None):
     return memo[topnode]
 
 
-################################################################################
-################################################################################
+############################################################################
+############################################################################
 
 @scope.define
 def pos_args(*args):
@@ -632,7 +637,7 @@ def repeat(n_times, obj):
 @scope.define
 def switch(pos, *args):
     # switch is an unusual expression, in that it affects control flow
-    # when executed with rec_eval. args are not all evaluated, only 
+    # when executed with rec_eval. args are not all evaluated, only
     # args[pos] is evaluated.
     ## return args[pos]
     raise RuntimeError('switch is not meant to be evaluated')
