@@ -180,6 +180,92 @@ class Apply(object):
         assert all(isinstance(arg, Apply) for arg in rval)
         return rval
 
+    @property
+    def arg(self):
+        # XXX: move this introspection to __init__, and change
+        #      the basic data-structure to not use pos_args and named_args.
+        # XXX: think though... we want the binding to be updated if pos_args
+        # and named_args is modified... so maybe this is an ok way to do it?
+        #
+        # XXX: extend something to deal with Lambda objects instead of
+        # decorated python functions.
+        #
+        # http://docs.python.org/reference/expressions.html#calls
+        #
+        binding = {}
+
+        fn = scope._impls[self.name]
+        defaults = fn.__defaults__  # right-aligned default values for params
+        code = fn.__code__
+
+        extra_args_ok = bool(code.co_flags & 0x04)
+        extra_kwargs_ok = bool(code.co_flags & 0x08)
+
+        param_names = code.co_varnames
+        # -- assert that my understanding of calling protocol is correct
+        try:
+            if extra_args_ok and extra_kwargs_ok:
+                assert len(param_names) == code.co_argcount + 2
+                args_param = param_names[-2]
+                kwargs_param = param_names[-1]
+                pos_params = param_names[:-2]
+            elif extra_kwargs_ok:
+                assert len(param_names) == code.co_argcount + 1
+                kwargs_param = param_names[-1]
+                pos_params = param_names[:-1]
+            elif extra_args_ok:
+                assert len(param_names) == code.co_argcount + 1
+                args_param = param_names[-1]
+                pos_params = param_names[:-1]
+            else:
+                assert len(param_names) == code.co_argcount
+                pos_params = param_names
+        except AssertionError:
+            print 'YIKES: MISUNDERSTANDING OF CALL PROTOCOL:',
+            print code.co_argcount,
+            print code.co_varnames,
+            print code.co_flags
+            raise
+
+        if extra_args_ok:
+            binding[args_param] == []
+
+        if extra_kwargs_ok:
+            binding[kwargs_param] == {}
+
+        if len(self.pos_args) > code.co_argcount and not extra_args_ok:
+            raise TypeError('Argument count exceeds number of positional params')
+
+        # -- bind positional arguments
+        for param_i, arg_i in zip(param_names, self.pos_args):
+            binding[param_i] = arg_i
+
+        if extra_args_ok:
+            binding[args_param].extend(args[code.co_argcount:])
+
+        # -- bind keyword arguments
+        for aname, aval in self.named_args:
+            try:
+                pos = pos_params.index(aname)
+            except ValueError:
+                if extra_kwargs_ok:
+                    binding[kwargs_param][aname] = aval
+                    continue
+                else:
+                    raise TypeError('Unrecognized keyword argument', aname)
+            param = param_names[pos]
+            if param in binding:
+                raise TypeError('Duplicate argument for parameter', param)
+            binding[param] = aval
+
+        assert len(binding) <= len(param_names)
+
+        if len(binding) != len(param_names):
+            raise TypeError('Call to %s missing argument(s): %s ' %(
+                self.name, [p for p in param_names if p not in binding]))
+
+        return binding
+
     def clone_from_inputs(self, inputs, o_len='same'):
         if len(inputs) != len(self.inputs()):
             raise TypeError()
