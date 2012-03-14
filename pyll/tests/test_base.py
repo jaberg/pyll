@@ -214,17 +214,33 @@ def test_recursion():
     print rec_eval(scope.Fact(3))
     #assert rec_eval(scope.Fact(3)) == 6
 
-def test_currying():
-    add2 = partial1('add', b=2)
-    sub2 = partial1('sub', b=2)
+
+def test_partial():
+    add2 = scope.partial1('add', b=2)
     print add2
-    print add2(3)
-    print sub2(3)
-    assert rec_eval(add2(3)) == 5
-    assert rec_eval(sub2(3)) == 1
+    assert len(str(add2).split('\n')) == 4
 
-    # test that currying nothing works
-    add_ = partial2('add')
-    assert rec_eval(add_(4, 3)) == 7
+    # add2 evaluates to a scope method
+    thing = rec_eval(add2)
+    assert 'apply_f' in str(thing)
 
+    # add2() evaluates to a failure because it's only a partial application
+    nose.tools.assert_raises(NotImplementedError, rec_eval, add2())
+
+    # add2(3) evaluates to 5 because we've filled in all the blanks
+    thing = rec_eval(add2(3))
+    print thing
+
+
+def test_callpipe():
+
+    # -- set up some 1-variable functions
+    a2 = scope.partial1('add', b=2)
+    a3 = scope.partial1('add', b=3)
+    s9 = scope.partial1('sub', b=9)
+
+    # x + 2 + 3 - 9 == x - 4
+    r = scope.callpipe1([a2, a3, s9], 5)
+    thing = rec_eval(r)
+    assert thing == 1
 

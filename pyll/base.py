@@ -73,6 +73,7 @@ class SymbolTable(object):
         def apply_f(*args, **kwargs):
             return self._new_apply(name, args, kwargs, o_len)
 
+        apply_f.apply_name = name
         setattr(self, name, apply_f)
         self._impls[name] = f
         return f
@@ -273,6 +274,9 @@ class Apply(object):
             return object.__len__(self)
         return self.o_len
 
+    def __call__(self, *args, **kwargs):
+        return scope.call(self, args, kwargs)
+
 
 def apply(name, *args, **kwargs):
     pos_args = [as_apply(a) for a in args]
@@ -343,7 +347,8 @@ class Lambda(object):
             #print 'applying with arg', param, arg
             memo[param[1]] = as_apply(arg)
         if len(args) != len(self.params) or kwargs:
-            raise NotImplementedError('named / default arguments')
+            raise NotImplementedError('named / default arguments',
+                    (args, self.params))
         rval = clone(self.expr, memo)
         #print 'BEFORE'
         #print self.expr
@@ -355,6 +360,7 @@ class Lambda(object):
 class UndefinedValue(object):
     pass
 
+
 # -- set up some convenience symbols to use as parameters in Lambda definitions
 p0 = Literal(UndefinedValue)
 p1 = Literal(UndefinedValue)
@@ -363,26 +369,57 @@ p3 = Literal(UndefinedValue)
 p4 = Literal(UndefinedValue)
 
 
-def partial1(name, *args, **kwargs):
+@scope.define
+def call(fn, args=(), kwargs={}):
+    """ call fn with given args and kwargs.
+
+    This is used to represent Apply.__call__
+    """
+    return fn(*args, **kwargs)
+
+
+@scope.define
+def callpipe1(fn_list, arg):
+    """
+
+    fn_list: a list lambdas  that return either pyll expressions or python
+        values
+
+    arg: the argument to the first function in the list
+
+    return: `fn_list[-1]( ... (fn_list[1](fn_list[0](arg))))`
+
+    """
+    # XXX: in current implementation, if fs are `partial`, then
+    #      this loop will expand all functions f at once, so that they
+    #      will all be evaluated in the same scope/memo by rec_eval.
+    #      Normally programming languages would evaluate each f in a private
+    #      scope
+    for f in fn_list:
+        arg = f(arg)
+    return arg
+
+
+@scope.define
+def partial(name, *args, **kwargs):
     # TODO: introspect the named instruction, to retrieve the
     #       list of parameters *not* accounted for by args and kwargs
     # then delete these stupid functions and just have one `partial`
-    temp_name = 'partial_%s_id%i' % (name, len(scope._impls))
+    try:
+        name = name.apply_name  # to retrieve name from scope.foo methods
+    except AttributeError:
+        pass
+
+    my_id = len(scope._impls)
+    # -- create a function with this name
+    #    the name is the string used index into scope._impls
+    temp_name = 'partial_%s_id%i' % (name, my_id)
     l = Lambda(temp_name, [('x', p0)],
             expr=apply(name, *(args + (p0,)), **kwargs))
     scope.define(l)
-    rval = getattr(scope, temp_name)
-    return rval
-
-
-def partial2(name, *args, **kwargs):
-    # TODO: introspect the named instruction, to retrieve the
-    #       list of parameters *not* accounted for by args and kwargs
-    # then delete these stupid functions and just have one `partial`
-    temp_name = 'partial_%s_id%i' % (name, len(scope._impls))
-    l = Lambda(temp_name, [('x', p0), ('y', p1)],
-            expr=apply(name, *(args + (p0, p1)), **kwargs))
-    scope.define(l)
+    # assert that the next partial will get a different id
+    # XXX; THIS ASSUMES THAT SCOPE ONLY GROWS
+    assert my_id < len(scope._impls)
     rval = getattr(scope, temp_name)
     return rval
 
