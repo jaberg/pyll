@@ -151,14 +151,18 @@ class Apply(object):
         This method operates directly on the graph of extended inputs to this
         node, making no attempt to modify or optimize the expression graph.
 
-        :note:
-            If there are nodes in the graph that do not represent expressions,
+        Caveats:
+
+          * If there are nodes in the graph that do not represent expressions,
             (e.g. nodes that correspond to statement blocks or assertions)
             then it's not clear what this routine should do, and you should
             probably not call it.
 
-            However, for many cases that are pure expression graphs, this
-            offers a quick and simple way to evaluate them.
+          * If there are Lambdas in the graph, this procedure will not evluate
+            them -- see rec_eval for that.
+
+        However, for many cases that are pure expression graphs, this
+        offers a quick and simple way to evaluate them.
         """
         if memo is None:
             memo = {}
