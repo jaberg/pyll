@@ -211,12 +211,13 @@ def test_recursion():
                 p0 > 1,
                 1,
                 p0 * apply('Fact', p0 - 1))))
-    print rec_eval(scope.Fact(3))
-    #assert rec_eval(scope.Fact(3)) == 6
+    print scope.Fact(3)
+    #print rec_eval(scope.Fact(3))
+    assert rec_eval(scope.Fact(3)) == 6
 
 
 def test_partial():
-    add2 = scope.partial1('add', b=2)
+    add2 = scope.partial('add', b=2)
     print add2
     assert len(str(add2).split('\n')) == 4
 
@@ -230,14 +231,15 @@ def test_partial():
     # add2(3) evaluates to 5 because we've filled in all the blanks
     thing = rec_eval(add2(3))
     print thing
+    assert thing == 5
 
 
 def test_callpipe():
 
     # -- set up some 1-variable functions
-    a2 = scope.partial1('add', b=2)
-    a3 = scope.partial1('add', b=3)
-    s9 = scope.partial1('sub', b=9)
+    a2 = scope.partial('add', b=2)
+    a3 = scope.partial('add', b=3)
+    s9 = scope.partial('sub', b=9)
 
     # x + 2 + 3 - 9 == x - 4
     r = scope.callpipe1([a2, a3, s9], 5)

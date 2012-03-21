@@ -3,7 +3,9 @@
 # It provides types to build ASTs in a simple lambda-notation style
 #
 
+import copy
 from StringIO import StringIO
+from collections import deque
 
 # TODO: move things depending on numpy (among others too) to a library file
 import numpy as np
@@ -547,7 +549,13 @@ def clone(expr, memo=None):
 ##############################################################################
 
 
-def rec_eval(expr, deepcopy_inputs=False, memo=None):
+class GarbageCollected(object):
+    '''Placeholder representing a garbage-collected value '''
+
+
+def rec_eval(expr, deepcopy_inputs=False, memo=None,
+        max_program_len=100000,
+        memo_gc=True):
     """
     expr - pyll Apply instance to be evaluated
 
@@ -563,26 +571,59 @@ def rec_eval(expr, deepcopy_inputs=False, memo=None):
         problem.
 
     """
+
+    if deepcopy_inputs not in (0, 1, False, True):
+        # -- I've been calling rec_eval(expr, memo) by accident a few times
+        #    this error would have been appreciated.
+        raise ValueError('deepcopy_inputs should be bool', deepcopy_inputs)
+
     node = as_apply(expr)
+    topnode = node
+
     if memo is None:
         memo = {}
+    else:
+        memo = dict(memo)
+
     # TODO: optimize dfs to not recurse past the items in memo
     #       this is especially important for evaluating Lambdas
     #       which cause rec_eval to recurse
-    for aa in dfs(node):
-        if isinstance(aa, Literal):
-            memo.setdefault(aa, aa.obj)
-    todo = [node]
-    topnode = node
+    #
+    # N.B. that Lambdas may expand the graph during the evaluation
+    #      so that this iteration may be an incomplete
+    if memo_gc:
+        clients = {}
+        for aa in dfs(node):
+            clients.setdefault(aa, set())
+            for ii in aa.inputs():
+                clients.setdefault(ii, set()).add(aa)
+        def set_memo(k, v):
+            assert v is not GarbageCollected
+            memo[k] = v
+            for ii in k.inputs():
+                # -- if all clients of ii are already in the memo
+                #    then we can free memo[ii] by replacing it
+                #    with a dummy symbol
+                if all(iic in memo for iic in clients[ii]):
+                    #print 'collecting', ii
+                    memo[ii] = GarbageCollected
+    else:
+        def set_memo(k, v):
+            memo[k] = v
+
+    todo = deque([topnode])
     while todo:
-        if len(todo) > 100000:
+        if len(todo) > max_program_len:
             raise RuntimeError('Probably infinite loop in document')
         node = todo.pop()
+
         if node in memo:
+            # -- we've already computed this, move on.
             continue
 
-        # -- lazily evaluated expressions go here
+        # -- different kinds of nodes are treated differently:
         if node.name == 'switch':
+            # -- switch is the conditional evaluation node
             switch_i_var = node.pos_args[0]
             if switch_i_var in memo:
                 switch_i = memo[switch_i_var]
@@ -591,42 +632,64 @@ def rec_eval(expr, deepcopy_inputs=False, memo=None):
                             switch_i)
                 rval_var = node.pos_args[switch_i + 1]
                 if rval_var in memo:
-                    memo[node] = memo[rval_var]
+                    set_memo(node, memo[rval_var])
                     continue
                 else:
                     waiting_on = [rval_var]
             else:
                 waiting_on = [switch_i_var]
+        elif isinstance(node, Literal):
+            # -- constants go straight into the memo
+            set_memo(node, node.obj)
+            continue
         else:
-            # -- normal instruction-type node
+            # -- normal instruction-type nodes have inputs
             waiting_on = [v for v in node.inputs() if v not in memo]
 
         if waiting_on:
-            todo.extend([node] + waiting_on)
+            # -- Necessary inputs have yet to be evaluated.
+            #    push the node back in the queue, along with the
+            #    inputs it still needs
+            todo.append(node)
+            todo.extend(waiting_on)
         else:
+            # -- not waiting on anything;
+            #    this instruction can be evaluated.
             args = _args = [memo[v] for v in node.pos_args]
             kwargs = _kwargs = dict([(k, memo[v])
                 for (k, v) in node.named_args])
+
+            if memo_gc:
+                for aa in args + kwargs.values():
+                    assert aa is not GarbageCollected
+
             if deepcopy_inputs:
-                import copy
                 args = copy.deepcopy(_args)
                 kwargs = copy.deepcopy(_kwargs)
+
             try:
                 rval = scope._impls[node.name](*args, **kwargs)
+
             except Exception, e:
                 print '=' * 80
                 print 'ERROR in rec_eval'
                 print 'EXCEPTION', type(e), str(e)
                 print 'NODE'
-                print node
+                print node  # -- typically a multi-line string
                 print '=' * 80
                 raise
 
             if isinstance(rval, Apply):
-                foo = rec_eval(rval, deepcopy_inputs, memo)
-                memo[node] = foo
+                # -- if an instruction returns a Pyll apply node
+                # it means evaluate that too. Lambdas do this.
+                #
+                # XXX: consider if it is desirable, efficient, buggy
+                #      etc. to keep using the same memo dictionary
+                foo = rec_eval(rval, deepcopy_inputs, memo,
+                        memo_gc=memo_gc)
+                set_memo(node, foo)
             else:
-                memo[node] = rval
+                set_memo(node, rval)
 
     return memo[topnode]
 
