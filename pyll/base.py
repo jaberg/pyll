@@ -341,6 +341,12 @@ class Apply(object):
     def __rdiv__(self, other):
         return scope.div(other, self)
 
+    def __pow__(self, other):
+        return scope.pow(self, other)
+
+    def __rpow__(self, other):
+        return scope.pow(other, self)
+
     def __gt__(self, other):
         return scope.gt(self, other)
 
@@ -760,6 +766,11 @@ def exp(a):
 @scope.define
 def log(a):
     return np.log(a)
+
+
+@scope.define
+def pow(a, b):
+    return a ** b
 
 
 @scope.define
