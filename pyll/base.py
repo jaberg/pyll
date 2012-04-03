@@ -431,6 +431,10 @@ class Literal(Apply):
 
 class Lambda(object):
 
+    # XXX: Extend Lambda objects to have a list of exception clauses.
+    #      If the code of the expr() throws an error, these clauses convert
+    #      that error to a return value.
+
     def __init__(self, name, params, expr):
         self.__name__ = name  # like a python function
         self.params = params  # list of (name, symbol[, default_value]) tuples
@@ -736,6 +740,11 @@ def mul(a, b):
 @scope.define
 def div(a, b):
     return a / b
+
+
+@scope.define
+def eq(a, b):
+    return a == b
 
 
 @scope.define
