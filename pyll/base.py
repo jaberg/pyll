@@ -35,6 +35,7 @@ class SymbolTable(object):
                 'len': len,
                 'int': int,
                 'float': float,
+                'map': map,
                 }
 
     def _new_apply(self, name, args, kwargs, o_len):
@@ -46,25 +47,33 @@ class SymbolTable(object):
                 named_args=named_args,
                 o_len=o_len)
 
+    # ----
+
+    def dict(self, *args, **kwargs):
+        # XXX: figure out len
+        return self._new_apply('dict', args, kwargs, o_len=None)
+
     def int(self, arg):
         return self._new_apply('int', [as_apply(arg)], {}, o_len=None)
 
     def float(self, arg):
         return self._new_apply('float', [as_apply(arg)], {}, o_len=None)
 
+    def len(self, obj):
+        return self._new_apply('len', [obj], {}, o_len=None)
+
     def list(self, init):
         return self._new_apply('list', [as_apply(init)], {}, o_len=None)
 
-    def dict(self, *args, **kwargs):
-        # XXX: figure out len
-        return self._new_apply('dict', args, kwargs, o_len=None)
+    def map(self, fn, seq):
+        return self._new_apply('map', [as_apply(fn), as_apply(seq)], {},
+                               o_len=seq.o_len)
 
     def range(self, *args):
         return self._new_apply('range', args, {}, o_len=None)
 
-    def len(self, obj):
-        return self._new_apply('len', [obj], {}, o_len=None)
-
+    # ----
+    
     def define(self, f, o_len=None):
         """Decorator for adding python functions to self
         """
@@ -818,6 +827,11 @@ def asarray(a, dtype=None):
         return np.asarray(a)
     else:
         return np.asarray(a, dtype=dtype)
+
+
+@scope.define
+def str_join(s, seq):
+    return s.join(seq)
 
 
 def _bincount_slow(x, weights=None, minlength=None):
