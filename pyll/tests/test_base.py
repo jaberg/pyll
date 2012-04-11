@@ -246,3 +246,22 @@ def test_callpipe():
     thing = rec_eval(r)
     assert thing == 1
 
+
+def clone_merge():
+    a, b, c = as_apply((2, 3, 2))
+    d = (a + b) * (c + b)
+    len_d = len(dfs(d))
+
+    e = clone_merge(d, merge_literals=True)
+    assert len_d == len(dfs(d))
+    assert len_d > len(dfs(e))
+    assert e.eval() == d.eval()
+
+def clone_merge_no_merge_literals():
+    a, b, c = as_apply((2, 3, 2))
+    d = (a + b) * (c + b)
+    len_d = len(dfs(d))
+    e = clone_merge(d, merge_literals=False)
+    assert len_d == len(dfs(d))
+    assert len_d == len(dfs(e))
+    assert e.eval() == d.eval()

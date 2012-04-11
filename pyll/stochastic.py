@@ -91,6 +91,7 @@ def qlognormal(mu, sigma, q, rng=None, size=()):
 def randint(upper, rng=None, size=()):
     # this is tricky because numpy doesn't support
     # upper being a list of len size[0]
+    asdf = 9
     if isinstance(upper, (list, tuple)):
         if isinstance(size, int):
             assert len(upper) == size
@@ -129,14 +130,10 @@ def choice(args):
 scope.choice = choice
 
 
-@implicit_stochastic
-@scope.define
-def one_of(*args, **kwargs):
-    rng = kwargs.pop('rng', None)
-    size = kwargs.pop('size', ())
-    assert not kwargs # -- we should have got everything by now
-    ii = rng.randint(len(args))
-    return args[ii]
+def one_of(*args):
+    ii = scope.randint(len(args))
+    return scope.switch(ii, *args)
+scope.one_of = one_of
 
 
 def recursive_set_rng_kwarg(expr, rng):

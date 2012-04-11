@@ -4,6 +4,7 @@
 #
 
 import copy
+import logging; logger = logging.getLogger(__name__)
 from StringIO import StringIO
 from collections import deque
 
@@ -14,6 +15,11 @@ np_versions = map(int, np.__version__.split('.')[:2])
 
 class PyllImportError(ImportError):
     """A pyll symbol was not defined in the scope """
+
+
+class MissingArgument(object):
+    """Object to represent a missing argument to a function application
+    """
 
 
 class SymbolTable(object):
@@ -36,45 +42,68 @@ class SymbolTable(object):
                 'int': int,
                 'float': float,
                 'map': map,
+                'max': max,
+                'min': min,
                 }
 
-    def _new_apply(self, name, args, kwargs, o_len):
+    def _new_apply(self, name, args, kwargs, o_len, pure):
         pos_args = [as_apply(a) for a in args]
         named_args = [(k, as_apply(v)) for (k, v) in kwargs.items()]
         named_args.sort()
         return Apply(name,
                 pos_args=pos_args,
                 named_args=named_args,
-                o_len=o_len)
+                o_len=o_len,
+                pure=pure)
 
     # ----
 
     def dict(self, *args, **kwargs):
         # XXX: figure out len
-        return self._new_apply('dict', args, kwargs, o_len=None)
+        return self._new_apply('dict', args, kwargs, o_len=None,
+                pure=True)
 
     def int(self, arg):
-        return self._new_apply('int', [as_apply(arg)], {}, o_len=None)
+        return self._new_apply('int', [as_apply(arg)], {}, o_len=None,
+                pure=True)
 
     def float(self, arg):
-        return self._new_apply('float', [as_apply(arg)], {}, o_len=None)
+        return self._new_apply('float', [as_apply(arg)], {}, o_len=None,
+                pure=True)
 
     def len(self, obj):
-        return self._new_apply('len', [obj], {}, o_len=None)
+        return self._new_apply('len', [obj], {}, o_len=None,
+                pure=True)
 
     def list(self, init):
-        return self._new_apply('list', [as_apply(init)], {}, o_len=None)
+        return self._new_apply('list', [as_apply(init)], {}, o_len=None,
+                pure=True)
 
-    def map(self, fn, seq):
+    def map(self, fn, seq, pure=False):
+        """
+        pure - True is assertion that fn does not modify seq[i]
+        """
         return self._new_apply('map', [as_apply(fn), as_apply(seq)], {},
-                               o_len=seq.o_len)
+                               o_len=seq.o_len,
+                               pure=pure
+                               )
 
     def range(self, *args):
-        return self._new_apply('range', args, {}, o_len=None)
+        return self._new_apply('range', args, {}, o_len=None, pure=True)
+
+    def max(self, *args):
+        """ return max of args """
+        return self._new_apply('max', map(as_apply, args), {},
+                o_len=None, pure=True)
+
+    def min(self, *args):
+        """ return min of args """
+        return self._new_apply('min', map(as_apply, args), {},
+                o_len=None, pure=True)
 
     # ----
-    
-    def define(self, f, o_len=None):
+
+    def define(self, f, o_len=None, pure=False):
         """Decorator for adding python functions to self
         """
         name = f.__name__
@@ -82,19 +111,27 @@ class SymbolTable(object):
             raise ValueError('Cannot override existing symbol', name)
 
         def apply_f(*args, **kwargs):
-            return self._new_apply(name, args, kwargs, o_len)
+            return self._new_apply(name, args, kwargs, o_len, pure)
 
         apply_f.apply_name = name
         setattr(self, name, apply_f)
         self._impls[name] = f
         return f
 
-    def define_info(self, o_len):
+    def define_pure(self, f):
+        return self.define(f, o_len=None, pure=True)
+
+    def define_info(self, o_len=None, pure=False):
         def wrapper(f):
-            return self.define(f, o_len=o_len)
+            return self.define(f, o_len=o_len, pure=pure)
         return wrapper
 
     def inject(self, *args, **kwargs):
+        """
+        Add symbols from self into a dictionary and return the dict.
+
+        This is used for import-like syntax: see `import_`.
+        """
         rval = {}
         for k in args:
             try:
@@ -141,9 +178,15 @@ def as_apply(obj):
 class Apply(object):
     """
     Represent a symbolic application of a symbol to arguments.
+
+    o_len - None or int if the function is guaranteed to return a fixed number
+        `o_len` of outputs if it returns successfully
+    pure - True only if the function has no relevant side-effects
     """
 
-    def __init__(self, name, pos_args, named_args, o_len=None):
+    def __init__(self, name, pos_args, named_args,
+            o_len=None,
+            pure=False):
         self.name = name
         # -- tuples or arrays -> lists
         self.pos_args = list(pos_args)
@@ -151,6 +194,7 @@ class Apply(object):
         # -- o_len is attached this early to support tuple unpacking and
         #    list coersion.
         self.o_len = o_len
+        self.pure = pure
         assert all(isinstance(v, Apply) for v in pos_args)
         assert all(isinstance(v, Apply) for k, v in named_args)
         assert all(isinstance(k, basestring) for k, v in named_args)
@@ -206,36 +250,40 @@ class Apply(object):
         binding = {}
 
         fn = scope._impls[self.name]
+        # XXX does not work for builtin functions
         defaults = fn.__defaults__  # right-aligned default values for params
         code = fn.__code__
 
         extra_args_ok = bool(code.co_flags & 0x04)
         extra_kwargs_ok = bool(code.co_flags & 0x08)
 
-        param_names = code.co_varnames
         # -- assert that my understanding of calling protocol is correct
         try:
             if extra_args_ok and extra_kwargs_ok:
-                assert len(param_names) == code.co_argcount + 2
-                args_param = param_names[-2]
-                kwargs_param = param_names[-1]
-                pos_params = param_names[:-2]
+                assert len(code.co_varnames) >= code.co_argcount + 2
+                param_names = code.co_varnames[:code.co_argcount + 2]
+                args_param = param_names[code.co_argcount]
+                kwargs_param = param_names[code.co_argcount + 1]
+                pos_params = param_names[:code.co_argcount]
             elif extra_kwargs_ok:
-                assert len(param_names) == code.co_argcount + 1
-                kwargs_param = param_names[-1]
-                pos_params = param_names[:-1]
+                assert len(code.co_varnames) >= code.co_argcount + 1
+                param_names = code.co_varnames[:code.co_argcount + 1]
+                kwargs_param = param_names[code.co_argcount]
+                pos_params = param_names[:code.co_argcount]
             elif extra_args_ok:
-                assert len(param_names) == code.co_argcount + 1
-                args_param = param_names[-1]
-                pos_params = param_names[:-1]
+                assert len(code.co_varnames) >= code.co_argcount + 1
+                param_names = code.co_varnames[:code.co_argcount + 1]
+                args_param = param_names[code.co_argcount]
+                pos_params = param_names[:code.co_argcount]
             else:
-                assert len(param_names) == code.co_argcount
-                pos_params = param_names
+                assert len(code.co_varnames) >= code.co_argcount
+                param_names = code.co_varnames[:code.co_argcount]
+                pos_params = param_names[:code.co_argcount]
         except AssertionError:
             print 'YIKES: MISUNDERSTANDING OF CALL PROTOCOL:',
             print code.co_argcount,
             print code.co_varnames,
-            print code.co_flags
+            print '%x' % code.co_flags
             raise
 
         if extra_args_ok:
@@ -271,11 +319,24 @@ class Apply(object):
 
         assert len(binding) <= len(param_names)
 
-        if len(binding) != len(param_names):
-            raise TypeError('Call to %s missing argument(s): %s ' %(
-                self.name, [p for p in param_names if p not in binding]))
+        if len(binding) < len(param_names):
+            for p in param_names:
+                if p not in binding:
+                    binding[p] = MissingArgument
 
         return binding
+
+    def set_kwarg(self, name, value):
+        for ii, (key, val) in enumerate(self.named_args):
+            if key == name:
+                self.named_args[ii][1] = as_apply(value)
+                return
+        arg = self.arg
+        if name in arg and arg[name] != MissingArgument:
+            raise NotImplementedError('change pos arg to kw arg')
+        else:
+            self.named_args.append([name, as_apply(value)])
+            self.named_args.sort()
 
     def clone_from_inputs(self, inputs, o_len='same'):
         if len(inputs) != len(self.inputs()):
@@ -337,6 +398,9 @@ class Apply(object):
 
     def __rsub__(self, other):
         return scope.sub(other, self)
+
+    def __neg__(self):
+        return scope.neg(self)
 
     def __mul__(self, other):
         return scope.mul(self, other)
@@ -401,7 +465,7 @@ class Literal(Apply):
             o_len = len(obj)
         except TypeError:
             o_len = None
-        Apply.__init__(self, 'literal', [], {}, o_len)
+        Apply.__init__(self, 'literal', [], {}, o_len, pure=True)
         self._obj = obj
 
     def eval(self, memo=None):
@@ -412,6 +476,10 @@ class Literal(Apply):
     @property
     def obj(self):
         return self._obj
+
+    @property
+    def arg(self):
+        return {}
 
     def pprint(self, ofile, lineno=None, indent=0, memo=None):
         if lineno is None:
@@ -561,6 +629,43 @@ def clone(expr, memo=None):
             new_inputs = [memo[arg] for arg in node.inputs()]
             new_node = node.clone_from_inputs(new_inputs)
             memo[node] = new_node
+    return memo[expr]
+
+
+def clone_merge(expr, memo=None, merge_literals=False):
+    nodes = dfs(expr)
+    if memo is None:
+        memo = {}
+    # -- args are somewhat slow to construct, so cache them out front
+    #    XXX node.arg does not always work (builtins, weird co_flags)
+    node_args = [(node.pos_args, node.named_args) for node in nodes]
+    del node
+    for ii, node_ii in enumerate(nodes):
+        if node_ii in memo:
+            continue
+        new_ii = None
+        if node_ii.pure:
+            for jj in range(ii):
+                node_jj = nodes[jj]
+                if node_ii.name != node_jj.name:
+                    continue
+                if node_ii.name == 'literal':
+                    if not merge_literals:
+                        continue
+                    if node_ii._obj != node_jj._obj:
+                        continue
+                else:
+                    if node_args[ii] != node_args[jj]:
+                        continue
+                logger.debug('clone_merge %s %i <- %i' % (
+                    node_ii.name, jj, ii))
+                new_ii = node_jj
+                break
+        if new_ii is None:
+            new_inputs = [memo[arg] for arg in node_ii.inputs()]
+            new_ii = node_ii.clone_from_inputs(new_inputs)
+        memo[node_ii] = new_ii
+
     return memo[expr]
 
 
@@ -716,82 +821,102 @@ def rec_eval(expr, deepcopy_inputs=False, memo=None,
 ############################################################################
 ############################################################################
 
-@scope.define
+@scope.define_pure
 def pos_args(*args):
     return args
 
 
-@scope.define
+@scope.define_pure
 def getitem(obj, idx):
     return obj[idx]
 
 
-@scope.define
+@scope.define_pure
 def identity(obj):
     return obj
 
 
-@scope.define
+@scope.define_pure
 def add(a, b):
     return a + b
 
 
-@scope.define
+@scope.define_pure
 def sub(a, b):
     return a - b
 
 
-@scope.define
+@scope.define_pure
+def neg(a):
+    return -a
+
+
+@scope.define_pure
 def mul(a, b):
     return a * b
 
 
-@scope.define
+@scope.define_pure
 def div(a, b):
     return a / b
 
 
-@scope.define
+@scope.define_pure
 def eq(a, b):
     return a == b
 
 
-@scope.define
+@scope.define_pure
 def gt(a, b):
     return a > b
 
 
-@scope.define
+@scope.define_pure
 def ge(a, b):
     return a >= b
 
 
-@scope.define
+@scope.define_pure
 def lt(a, b):
     return a < b
 
 
-@scope.define
+@scope.define_pure
 def le(a, b):
     return a <= b
 
 
-@scope.define
+@scope.define_pure
 def exp(a):
     return np.exp(a)
 
 
-@scope.define
+@scope.define_pure
 def log(a):
     return np.log(a)
 
 
-@scope.define
+@scope.define_pure
 def pow(a, b):
     return a ** b
 
 
-@scope.define
+@scope.define_pure
+def sin(a):
+    return np.sin(a)
+
+
+@scope.define_pure
+def cos(a):
+    return np.cos(a)
+
+
+@scope.define_pure
+def tan(a):
+    return np.tan(a)
+
+
+@scope.define_pure
 def sum(x, axis=None):
     if axis is None:
         return np.sum(x)
@@ -799,29 +924,35 @@ def sum(x, axis=None):
         return np.sum(x, axis=axis)
 
 
-@scope.define
+@scope.define_pure
 def sqrt(x):
     return np.sqrt(x)
 
 
-@scope.define
+@scope.define_pure
 def minimum(x, y):
     return np.minimum(x, y)
 
 
-@scope.define
+@scope.define_pure
 def maximum(x, y):
     return np.maximum(x, y)
 
 
-@scope.define
-def array_union(a, b):
-    sa = set(a)
-    sa.update(b)
-    return np.asarray(sorted(sa))
+@scope.define_pure
+def array_union1(args):
+    s = set()
+    for a in args:
+        s.update(a)
+    return np.asarray(sorted(s))
 
 
-@scope.define
+@scope.define_pure
+def array_union(*args):
+    return array_union1(args)
+
+
+@scope.define_pure
 def asarray(a, dtype=None):
     if dtype is None:
         return np.asarray(a)
@@ -829,7 +960,7 @@ def asarray(a, dtype=None):
         return np.asarray(a, dtype=dtype)
 
 
-@scope.define
+@scope.define_pure
 def str_join(s, seq):
     return s.join(seq)
 
@@ -849,7 +980,7 @@ def _bincount_slow(x, weights=None, minlength=None):
     return rval
 
 
-@scope.define
+@scope.define_pure
 def bincount(x, weights=None, minlength=None):
     if np_versions[0] == 1 and np_versions[1] < 6:
         # -- np.bincount doesn't have minlength arg
@@ -863,21 +994,24 @@ def bincount(x, weights=None, minlength=None):
             return np.zeros(minlength, dtype='int')
 
 
-@scope.define
+@scope.define_pure
 def repeat(n_times, obj):
     return [obj] * n_times
 
 
-@scope.define
+@scope.define_pure
 def switch(pos, *args):
     # switch is an unusual expression, in that it affects control flow
     # when executed with rec_eval. args are not all evaluated, only
     # args[pos] is evaluated.
-    ## return args[pos]
-    raise RuntimeError('switch is not meant to be evaluated')
+    ##raise RuntimeError('switch is not meant to be evaluated')
+    #
+    # .. However, in quick-evaluation schemes it is handy that this be defined
+    # as follows:
+    return args[pos]
 
 
-@scope.define
+@scope.define_pure
 def Raise(etype, *args, **kwargs):
     raise etype(*args, **kwargs)
 
