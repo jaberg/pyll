@@ -49,6 +49,7 @@ class SymbolTable(object):
                 'map': map,
                 'max': max,
                 'min': min,
+                'getattr': getattr,
                 }
 
     def _new_apply(self, name, args, kwargs, o_len, pure):
@@ -105,6 +106,13 @@ class SymbolTable(object):
         """ return min of args """
         return self._new_apply('min', map(as_apply, args), {},
                 o_len=None, pure=True)
+
+    def getattr(self, obj, attr, *args):
+        return self._new_apply('getattr',
+                [as_apply(obj), as_apply(attr)] + map(as_apply, args),
+                {},
+                o_len=None,
+                pure=True)
 
     # ----
 
