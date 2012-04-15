@@ -427,6 +427,12 @@ class Apply(object):
     def __rdiv__(self, other):
         return scope.div(other, self)
 
+    def __floordiv__(self, other):
+        return scope.floordiv(self, other)
+
+    def __rfloordiv__(self, other):
+        return scope.floordiv(other, self)
+
     def __pow__(self, other):
         return scope.pow(self, other)
 
@@ -889,6 +895,11 @@ def mul(a, b):
 @scope.define_pure
 def div(a, b):
     return a / b
+
+
+@scope.define_pure
+def floordiv(a, b):
+    return a // b
 
 
 @scope.define_pure
