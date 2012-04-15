@@ -1040,6 +1040,30 @@ def repeat(n_times, obj):
     return [obj] * n_times
 
 
+@scope.define
+def call_method(obj, methodname, *args, **kwargs):
+    method = getattr(obj, methodname)
+    return method(*args, **kwargs)
+
+
+@scope.define_pure
+def call_method_pure(obj, methodname, *args, **kwargs):
+    method = getattr(obj, methodname)
+    return method(*args, **kwargs)
+
+
+@scope.define_pure
+def copy_call_method_pure(obj, methodname, *args, **kwargs):
+    # -- this method copies object before calling the method
+    #    so that in the case where args and kwargs are not modified
+    #    the call_method can be done in a no-side-effect way.
+    #
+    #    It is a mistake to use this method when args or kwargs are modified
+    #    by the call to method.
+    method = getattr(copy.copy(obj), methodname)
+    return method(*args, **kwargs)
+
+
 @scope.define_pure
 def switch(pos, *args):
     # switch is an unusual expression, in that it affects control flow
