@@ -15,6 +15,9 @@ import numpy as np
 np_versions = map(int, np.__version__.split('.')[:2])
 
 
+DEFAULT_MAX_PROGRAM_LEN = 100000
+
+
 class PyllImportError(ImportError):
     """A pyll symbol was not defined in the scope """
 
@@ -695,7 +698,7 @@ class GarbageCollected(object):
 
 
 def rec_eval(expr, deepcopy_inputs=False, memo=None,
-        max_program_len=100000,
+        max_program_len=None,
         memo_gc=True):
     """
     expr - pyll Apply instance to be evaluated
@@ -712,6 +715,8 @@ def rec_eval(expr, deepcopy_inputs=False, memo=None,
         problem.
 
     """
+    if max_program_len == None:
+        max_program_len = DEFAULT_MAX_PROGRAM_LEN
 
     if deepcopy_inputs not in (0, 1, False, True):
         # -- I've been calling rec_eval(expr, memo) by accident a few times
