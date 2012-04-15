@@ -8,6 +8,8 @@ import logging; logger = logging.getLogger(__name__)
 from StringIO import StringIO
 from collections import deque
 
+import networkx as nx
+
 # TODO: move things depending on numpy (among others too) to a library file
 import numpy as np
 np_versions = map(int, np.__version__.split('.')[:2])
@@ -618,6 +620,21 @@ def dfs(aa, seq=None, seqset=None):
         dfs(ii, seq, seqset)
     seq.append(aa)
     return seq
+
+
+def toposort(expr):
+    """
+    Return apply nodes of `expr` sub-tree in topological order.
+
+    Raises networkx.NetworkXUnfeasible if subtree contains cycle.
+
+    """
+    G = nx.DiGraph()
+    for node in dfs(expr):
+        G.add_edges_from([(n_in, node) for n_in in node.inputs()])
+    order = nx.topological_sort(G)
+    assert order[-1] == expr
+    return order
 
 
 def clone(expr, memo=None):

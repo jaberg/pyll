@@ -6,6 +6,7 @@ from base import rec_eval
 from base import clone
 from base import clone_merge
 from base import dfs
+from base import toposort
 
 # -- adds symbols to scope
 import stochastic
