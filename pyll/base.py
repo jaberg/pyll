@@ -719,7 +719,9 @@ class GarbageCollected(object):
 
 def rec_eval(expr, deepcopy_inputs=False, memo=None,
         max_program_len=None,
-        memo_gc=True):
+        memo_gc=True,
+        print_trace=False
+        ):
     """
     expr - pyll Apply instance to be evaluated
 
@@ -782,6 +784,8 @@ def rec_eval(expr, deepcopy_inputs=False, memo=None,
         if len(todo) > max_program_len:
             raise RuntimeError('Probably infinite loop in document')
         node = todo.pop()
+        if print_trace:
+            print 'rec_eval:print_trace', len(todo), node.name
 
         if node in memo:
             # -- we've already computed this, move on.
