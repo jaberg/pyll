@@ -5,6 +5,8 @@
 
 import copy
 import logging; logger = logging.getLogger(__name__)
+import time
+
 from StringIO import StringIO
 from collections import deque
 
@@ -1079,4 +1081,15 @@ def switch(pos, *args):
 @scope.define_pure
 def Raise(etype, *args, **kwargs):
     raise etype(*args, **kwargs)
+
+
+@scope.define_info(o_len=2)
+def curtime(obj):
+    return time.time(), obj
+
+
+@scope.define
+def pdb_settrace(obj):
+    import pdb; pdb.set_trace()
+    return obj
 
