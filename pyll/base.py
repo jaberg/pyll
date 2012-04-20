@@ -182,8 +182,12 @@ def as_apply(obj):
         #    but think about if it's ok to allow Applys
         #    it messes up sorting at the very least.
         items.sort()
-        named_args = [(k, as_apply(v)) for (k, v) in items]
-        rval = Apply('dict', [], named_args, len(named_args))
+        if all(isinstance(k, basestring) for k in obj):
+            named_args = [(k, as_apply(v)) for (k, v) in items]
+            rval = Apply('dict', [], named_args, len(named_args))
+        else:
+            new_items = [(k, as_apply(v)) for (k, v) in items]
+            rval = Apply('dict', [as_apply(new_items)], {}, o_len=None)
     else:
         rval = Literal(obj)
     assert isinstance(rval, Apply)
