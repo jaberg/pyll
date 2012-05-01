@@ -797,6 +797,10 @@ def rec_eval(expr, deepcopy_inputs=False, memo=None,
             switch_i_var = node.pos_args[0]
             if switch_i_var in memo:
                 switch_i = memo[switch_i_var]
+                try:
+                    int(switch_i)
+                except:
+                    raise TypeError('switch argument was', switch_i)
                 if switch_i != int(switch_i) or switch_i < 0:
                     raise ValueError('switch pos must be positive int',
                             switch_i)
