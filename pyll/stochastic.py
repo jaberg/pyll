@@ -136,12 +136,14 @@ def one_of(*args):
 scope.one_of = one_of
 
 
-def recursive_set_rng_kwarg(expr, rng):
+def recursive_set_rng_kwarg(expr, rng=None):
     """
     Make all of the stochastic nodes in expr use the rng
 
     uniform(0, 1) -> uniform(0, 1, rng=rng)
     """
+    if rng is None:
+        rng = np.random.RandomState()
     lrng = as_apply(rng)
     for node in dfs(expr):
         if node.name in implicit_stochastic_symbols:
@@ -149,7 +151,8 @@ def recursive_set_rng_kwarg(expr, rng):
     return expr
 
 
-def sample(expr, rng, **kwargs):
+def sample(expr, rng=None, **kwargs):
+    if rng is None:
+        rng = np.random.RandomState()
     foo = recursive_set_rng_kwarg(clone(as_apply(expr)), as_apply(rng))
     return rec_eval(foo, **kwargs)
-
