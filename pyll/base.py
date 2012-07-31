@@ -125,11 +125,8 @@ class SymbolTable(object):
         if hasattr(self, name):
             raise ValueError('Cannot override existing symbol', name)
 
-        def apply_f(*args, **kwargs):
-            return self._new_apply(name, args, kwargs, o_len, pure)
-
-        apply_f.apply_name = name
-        setattr(self, name, apply_f)
+        entry = SymbolTableEntry(self, name, o_len, pure)
+        setattr(self, name, entry)
         self._impls[name] = f
         return f
 
@@ -163,6 +160,22 @@ class SymbolTable(object):
     def import_(self, _globals, *args, **kwargs):
         _globals.update(self.inject(*args, **kwargs))
 
+class SymbolTableEntry(object):
+    """A functools.partial-like class for adding symbol table entries.
+    """
+    def __init__(self, symbol_table, apply_name, o_len, pure):
+        self.symbol_table = symbol_table
+        self.apply_name = apply_name
+        self.o_len = o_len
+        self.pure = pure
+
+    def __call__(self, *args, **kwargs):
+        return self.symbol_table._new_apply(
+                self.apply_name,
+                args,
+                kwargs,
+                self.o_len,
+                self.pure)
 
 scope = SymbolTable()
 
