@@ -720,7 +720,8 @@ class GarbageCollected(object):
 def rec_eval(expr, deepcopy_inputs=False, memo=None,
         max_program_len=None,
         memo_gc=True,
-        print_trace=False
+        print_trace=False,
+        print_node_on_error=True,
         ):
     """
     expr - pyll Apply instance to be evaluated
@@ -845,12 +846,13 @@ def rec_eval(expr, deepcopy_inputs=False, memo=None,
                 rval = scope._impls[node.name](*args, **kwargs)
 
             except Exception, e:
-                print '=' * 80
-                print 'ERROR in rec_eval'
-                print 'EXCEPTION', type(e), str(e)
-                print 'NODE'
-                print node  # -- typically a multi-line string
-                print '=' * 80
+                if print_node_on_error:
+                    print '=' * 80
+                    print 'ERROR in rec_eval'
+                    print 'EXCEPTION', type(e), str(e)
+                    print 'NODE'
+                    print node  # -- typically a multi-line string
+                    print '=' * 80
                 raise
 
             if isinstance(rval, Apply):
