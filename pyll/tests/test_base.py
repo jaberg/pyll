@@ -223,7 +223,8 @@ def test_partial():
 
     # add2 evaluates to a scope method
     thing = rec_eval(add2)
-    assert 'apply_f' in str(thing)
+    print thing
+    assert 'SymbolTableEntry' in str(thing)
 
     # add2() evaluates to a failure because it's only a partial application
     nose.tools.assert_raises(NotImplementedError, rec_eval, add2())
